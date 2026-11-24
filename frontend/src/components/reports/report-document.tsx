@@ -1,0 +1,175 @@
+import { Fragment, type ReactNode } from 'react';
+import { Barcode, QrCode } from '@/components/shared/codes';
+import { LabLogoMark } from '@/components/shared/lab-logo';
+import { FLAG_META } from '@/constants';
+import { cn, formatDateTime, titleCase } from '@/lib/utils';
+import type { Report, ReportSignatory } from '@/types';
+
+/** Lab abbreviations kept in capitals when a name typed in ALL CAPS is changed to normal case. */
+const ABBREVIATIONS = new Set(['ESR', 'HIV', 'HCV', 'HBV', 'HBSAG', 'HAV', 'HEV', 'ALT', 'AST', 'ALP', 'GGT', 'HDL', 'LDL', 'VLDL', 'TSH', 'FT3', 'FT4', 'PCV', 'HCT', 'MPV', 'PDW', 'PCT', 'RDW', 'NRBC', 'CRP', 'ASO', 'RA', 'INR', 'PT', 'APTT', 'LFT', 'RFT', 'ANA', 'IGG', 'IGM', 'IGE', 'ABO', 'RH', 'BUN', 'AFB', 'HPF', 'LPF', 'RBC', 'RBCS', 'WBC', 'WBCS', 'TLC', 'DLC', 'PSA', 'CEA', 'AFP', 'LH', 'FSH', 'HCG', 'ICT', 'CBC', 'CSF', 'PH', 'SGPT', 'SGOT', 'CPK', 'LDH', 'TIBC', 'UIBC', 'G6PD', 'HB', 'HBA1C', 'MCV', 'MCH', 'MCHC', 'VDRL', 'TPHA', 'ELISA', 'PCR', 'DNA', 'RNA', 'TB', 'CV', 'SD', 'RDW-CV', 'RDW-SD']);
+/**
+ * Parameter names as written; a name typed in ALL CAPITALS is shown as "Each Word Capitalised",
+ * except lab abbreviations (MCHC, VDRL, HBsAg-style codes, anything with a digit or no vowel).
+ */
+const niceName = (s: string) =>
+  s.length > 3 && s === s.toUpperCase() && /[A-Z]/.test(s)
+    ? s.replace(/[A-Z0-9]+/g, (w) => (ABBREVIATIONS.has(w) || /\d/.test(w) || !/[AEIOU]/.test(w) ? w : w[0] + w.slice(1).toLowerCase()))
+    : s;
+
+const DEFAULT_PROVISO =
+  'This report relates only to the sample(s) received. Results should be interpreted by a qualified clinician in the clinical context.';
+
+/**
+ * A4 clinical report rendered from the immutable server snapshot, in the classic
+ * Pakistani laboratory layout: letterhead, two-column patient block, department
+ * band, TEST NAME / RESULT / UNITS / NORMAL VALUE table, and a footer pinned to
+ * the bottom with staff names, proviso and print details.
+ */
+export function ReportDocument({
+  report,
+  verifyBase,
+  printedBy,
+  current,
+}: {
+  report: Report;
+  verifyBase: string;
+  printedBy?: string;
+  /** Current letterhead settings — used when the report was generated before they were set. */
+  current?: { signatories?: ReportSignatory[]; phone?: string; address?: string };
+}) {
+  const s = { ...report.snapshot, lab: { ...report.snapshot.lab, phone: report.snapshot.lab.phone || current?.phone || '', address: report.snapshot.lab.address || current?.address || '' } };
+  const watermark = report.status === 'interim' || report.status === 'superseded';
+  const tests = [...s.tests].sort((a, b) => a.category.localeCompare(b.category));
+  // Footer names: as set in Settings; otherwise the people on record (approver, then the technologist who entered results).
+  const staff: Array<{ name: string; qualification?: string }> = s.lab.signatories?.length
+    ? s.lab.signatories
+    : current?.signatories?.length
+      ? current.signatories
+      : [...new Set([...s.verifiedBy, ...s.technicians])].filter(Boolean).map((name) => ({ name }));
+  if (!staff.length) staff.push({ name: '—' });
+  const Row = ({ k, v }: { k: string; v?: ReactNode }) => (
+    <div className="grid grid-cols-[7.8rem_1fr] gap-1 py-[1px]">
+      <span className="text-slate-900">{k}</span>
+      <span className="font-bold">: {v || '—'}</span>
+    </div>
+  );
+
+  return (
+    <article className="print-area print-doc relative mx-auto flex min-h-[273mm] w-full max-w-[210mm] flex-col overflow-hidden bg-white p-[10mm] text-[10pt] font-medium leading-snug text-black shadow-elevated print:min-h-[245mm] print:overflow-visible sm:p-[12mm]">
+      {watermark && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center" aria-hidden>
+          <span className={cn('-rotate-[30deg] select-none text-[64pt] font-black tracking-widest opacity-[0.07] sm:text-[88pt]', report.status === 'superseded' ? 'text-red-700' : 'text-slate-900')}>{report.status.toUpperCase()}</span>
+        </div>
+      )}
+
+      {/* Letterhead */}
+      <header className="flex items-center gap-4">
+        <LabLogoMark className="size-24 shrink-0" alt={s.lab.name} />
+        <div className="min-w-0 flex-1 text-center">
+          {/* Lab name on ONE line, stretched to the full width of the letterhead. */}
+          <h1 className="text-slate-900" aria-label={s.lab.name}>
+            <svg viewBox="0 0 1000 50" className="block h-auto w-full" aria-hidden>
+              <text x="500" y="45" textAnchor="middle" textLength="1000" lengthAdjust="spacingAndGlyphs" fill="currentColor" className="font-serif" fontSize="56" fontWeight="700">
+                {s.lab.name.toUpperCase()}
+              </text>
+            </svg>
+          </h1>
+          {s.lab.tagline && <p className="mt-0.5 text-[11.5pt] font-bold leading-tight tracking-wide text-[#15803d] print:text-black">{s.lab.tagline}</p>}
+          {s.lab.address && <p className="text-[9.5pt] font-semibold">{s.lab.address}</p>}
+        </div>
+      </header>
+      <p className="mt-1 border-b-2 border-slate-800 pb-1 text-center font-serif text-[11.5pt] font-bold uppercase tracking-wide">
+        Clinical Laboratory Report
+        {(report.status === 'interim' || report.status === 'superseded') && <span className="ml-2 align-middle text-[8pt] font-bold text-amber-700">({report.status})</span>}
+      </p>
+
+      {/* Patient block */}
+      <section className="grid grid-cols-2 gap-6 border-b-2 border-slate-800 py-2 text-[10pt]">
+        <div>
+          <Row k="Patient Name" v={s.patient.name} />
+          {s.patient.guardian && <Row k="Father/Husband" v={s.patient.guardian} />}
+          <Row k="Age & Gender" v={`${s.patient.age ?? '—'} ${titleCase(s.patient.gender)}`} />
+          <Row k="MR No." v={s.patient.mrNumber} />
+          <Row k="Referred By" v={s.doctorName ?? 'Self'} />
+        </div>
+        <div className="flex flex-col">
+          <Row k="Lab No. #" v={s.orderNumber} />
+          <Row k="Sample Date & Time" v={formatDateTime(s.samples[0]?.collectedAt ?? s.registeredAt)} />
+          <Row k="Report Date & Time" v={formatDateTime(report.generatedAt)} />
+          <div className="mt-1 flex items-end justify-end gap-3">
+            <Barcode value={s.orderNumber} height={26} width={1.1} displayValue={false} />
+            <QrCode value={`${verifyBase}/${report.verificationCode}`} size={46} />
+          </div>
+        </div>
+      </section>
+
+      {/* Results, grouped by department */}
+      <section className="mt-2 space-y-3">
+        {tests.map((t, i) => (
+          // Short tests never split across pages; a long one (e.g. a full CBC) may continue on the
+          // next page rather than leaving the first page empty.
+          <div key={t.resultId} className={cn(t.values.length <= 15 && 'print-avoid-break')}>
+            {(i === 0 || tests[i - 1].category !== t.category) && (
+              <>
+                <h2 className="mt-1 text-center font-serif text-[12pt] font-bold uppercase tracking-wide">{t.category}</h2>
+                <div className="grid grid-cols-[40%_18%_17%_25%] border-y-2 border-slate-800 bg-slate-200 px-3 py-1 text-[9.5pt] font-bold uppercase">
+                  <span>Test Name</span><span>Result</span><span>Units</span><span>Normal Value</span>
+                </div>
+              </>
+            )}
+            <div className="mt-1 border-b border-slate-500 bg-slate-200 px-3 py-[2px] text-[10pt] font-bold uppercase text-black">
+              {t.testName}
+            </div>
+            {t.status === 'pending' ? (
+              <p className="px-3 py-1 text-[8.5pt] italic text-slate-800">Result pending — will be issued after verification.</p>
+            ) : (
+              <>
+                {t.values.map((v, j) => {
+                  const abnormal = v.flag !== 'normal' && v.flag !== 'no_range';
+                  const heading = v.section && v.section !== t.values[j - 1]?.section ? v.section : null;
+                  return (
+                    <Fragment key={`${v.parameterName}-${j}`}>
+                    {heading && <div className="mx-3 mt-1.5 w-1/2 border-l-4 border-black bg-slate-300 px-1.5 py-[1px] text-[9.5pt] font-bold uppercase italic text-black">{heading}</div>}
+                    <div className="grid grid-cols-[40%_18%_17%_25%] px-3 py-[4px] text-[10pt] print:break-inside-avoid print:py-[5px] text-black last:border-b-0">
+                      <span className="text-[9.5pt]">{niceName(v.parameterName === 'Result' ? t.testName : v.parameterName)}</span>
+                      <span className={cn('tabular font-semibold', abnormal && 'font-extrabold')}>
+                        {v.value}
+                        {abnormal && <span className="ml-1.5 text-[8.5pt]">{FLAG_META[v.flag]?.short}</span>}
+                      </span>
+                      <span>{v.unit}</span>
+                      <span className="whitespace-pre-line">{v.range || <span className="text-black">—</span>}</span>
+                    </div>
+                    </Fragment>
+                  );
+                })}
+                {t.comment && <p className="px-3 pt-0.5 text-[9pt] italic text-slate-900">Comment: {t.comment}</p>}
+              </>
+            )}
+          </div>
+        ))}
+      </section>
+
+      {/* Footer pinned to the bottom of the page */}
+      <footer className="print-avoid-break mt-auto pt-6 text-[9pt]">
+        <p className="flex flex-wrap justify-between gap-x-4 border-b-2 border-slate-800 pb-0.5 text-[9pt] font-semibold">
+          <span>Electronically verified, no signature(s) required.</span>
+          <span className="font-bold">Not valid for any court</span>
+        </p>
+        <div className="flex flex-wrap justify-between gap-x-6 gap-y-2 py-1.5">
+          {staff.map((p) => (
+            <div key={p.name} className="min-w-0 first:text-left last:text-right [&:not(:first-child):not(:last-child)]:text-center">
+              <p className="text-[9.5pt] font-bold">{p.name}</p>
+              {'qualification' in p && p.qualification && <p className="text-[8.5pt]">{p.qualification}</p>}
+            </div>
+          ))}
+        </div>
+        <p className="border-t-2 border-slate-800 pt-1 text-[8.5pt]"><strong>Proviso:</strong> {s.lab.reportFooter || DEFAULT_PROVISO}</p>
+        <div className="mt-1 flex flex-wrap justify-between gap-2 text-[8.5pt] text-slate-900">
+          <span>Print Date &amp; Time: {formatDateTime(new Date().toISOString())}</span>
+          <span>Report No. {report.reportNumber}{s.lab.phone ? ` · For any query please contact: ${s.lab.phone}` : ` · Thank you for choosing ${s.lab.name}`}</span>
+          {printedBy && <span>Printed By: {printedBy}</span>}
+        </div>
+      </footer>
+    </article>
+  );
+}

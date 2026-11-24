@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <clipPath id="disc"><circle cx="256" cy="256" r="226"/></clipPath>
+  </defs>
+  <circle cx="256" cy="256" r="249" fill="#ffffff"/>
+  <circle cx="256" cy="256" r="241" fill="none" stroke="#000000" stroke-width="14"/>
+  <circle cx="256" cy="256" r="226" fill="none" stroke="#000000" stroke-width="3"/>
+  <circle cx="256" cy="256" r="219" fill="none" stroke="#000000" stroke-width="1.2" stroke-dasharray="2 7"/>
+  <!-- eight-point star -->
+  <g transform="translate(256 152)">
+    <rect x="-74" y="-74" width="148" height="148" rx="6" fill="#ffffff" stroke="#000000" stroke-width="3"/>
+    <rect x="-74" y="-74" width="148" height="148" rx="6" fill="#ffffff" stroke="#000000" stroke-width="3" transform="rotate(45)"/>
+    <rect x="-72" y="-72" width="144" height="144" rx="5" fill="#ffffff" stroke="none"/>
+  </g>
+  <!-- flask -->
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <path d="M245 100 V146 L205 210 Q197 226 215 229 H297 Q315 226 307 210 L267 146 V100" fill="#ffffff" stroke="#000000" stroke-width="9"/>
+    <path d="M222 184 H290 L302 205 Q309 220 295 222 H217 Q203 220 210 205 Z" fill="#000000"/>
+    <path d="M235 97 H277" stroke="#000000" stroke-width="10"/>
+    <path d="M256 194 V214 M246 204 H266" stroke="#ffffff" stroke-width="6"/>
+    <circle cx="250" cy="165" r="5.5" fill="#000000"/>
+    <circle cx="263" cy="150" r="3.8" fill="#000000"/>
+    <circle cx="255" cy="134" r="2.8" fill="#000000"/>
+  </g>
+  <!-- wordmark -->
+  <text x="256" y="318" text-anchor="middle" textLength="318" lengthAdjust="spacingAndGlyphs"
+        font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="66" fill="#000000">AL HAMD</text>
+  <g fill="#000000" stroke="#000000">
+    <line x1="142" y1="340" x2="236" y2="340" stroke-width="2.5"/>
+    <line x1="276" y1="340" x2="370" y2="340" stroke-width="2.5"/>
+    <rect x="249" y="333" width="14" height="14" transform="rotate(45 256 340)" stroke="none"/>
+  </g>
+  <text x="256" y="374" text-anchor="middle" textLength="300" lengthAdjust="spacingAndGlyphs"
+        font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="22" fill="#000000">CLINICAL LABORATORY</text>
+  <text x="256" y="420" text-anchor="middle" textLength="236" lengthAdjust="spacingAndGlyphs" direction="rtl"
+        font-family="'Noto Nastaliq Urdu','Jameel Noori Nastaleeq','Segoe UI',Tahoma,Arial,sans-serif" font-weight="700" font-size="30" fill="#000000">الحمد کلینیکل لیبارٹری</text>
+</svg>

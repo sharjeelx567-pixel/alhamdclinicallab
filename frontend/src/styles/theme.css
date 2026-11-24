@@ -1,0 +1,128 @@
+/*
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  AL HAMD CLINICAL LABORATORY — THEME TOKENS  (edit this file to re-brand)
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  Palette: deep EMERALD green + warm GOLD on ivory "paper" (light is default).
+ *  • Colours are HSL triplets ("H S% L%") so Tailwind can add opacity:
+ *      bg-primary/20, text-highlight, border-border …
+ *  • Fonts are chosen in src/theme/fonts.ts (one line to change).
+ *  • Default light/dark mode is set in src/theme/config.ts.
+ *  • Semantic colours (success / warning / destructive / info) carry clinical
+ *    meaning (flags, statuses) — keep them clearly distinguishable.
+ */
+
+:root {
+  /* ── Brand ─────────────────────────────────────────────────────────────── */
+  --brand-1: 161 79% 20%;          /* emerald (logo green #0B5D45) */
+  --brand-2: 168 55% 32%;          /* jade */
+  --brand-3: 44 66% 47%;           /* gold (logo gold #C9A227) */
+  --highlight: 42 78% 44%;         /* gold accent (active tab underline, chips) */
+  --highlight-foreground: 40 60% 10%;
+
+  /* ── Surfaces (LIGHT — default) ────────────────────────────────────────── */
+  --background: 42 36% 96%;        /* warm ivory */
+  --foreground: 165 35% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 165 35% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 165 35% 10%;
+  --primary: var(--brand-1);
+  --primary-foreground: 0 0% 100%;
+  --primary-soft: 152 40% 93%;
+  --primary-text: 161 80% 20%;
+  --secondary: 42 30% 91%;
+  --secondary-foreground: 165 30% 16%;
+  --muted: 42 28% 92%;
+  --muted-foreground: 160 10% 36%;
+  --accent: 152 35% 92%;
+  --accent-foreground: 161 75% 18%;
+  --border: 40 20% 84%;
+  --input: 40 18% 78%;
+  --ring: 42 78% 44%;
+
+  /* ── Semantic (clinical meaning) ───────────────────────────────────────── */
+  --destructive: 356 72% 44%;
+  --destructive-foreground: 0 0% 100%;
+  --destructive-soft: 356 80% 96%;
+  --success: 145 63% 27%;
+  --success-soft: 140 50% 92%;
+  --warning: 28 90% 33%;
+  --warning-soft: 40 92% 90%;
+  --info: 207 80% 38%;
+  --info-soft: 205 85% 94%;
+
+  /* ── Top bar (the old "sidebar" tokens now colour the header) ──────────── */
+  --sidebar: 161 79% 15%;
+  --sidebar-foreground: 45 45% 96%;
+  --sidebar-muted: 150 22% 74%;
+  --sidebar-active: var(--highlight);
+
+  /* ── Surfaces: solid paper cards, no frosted glass (faster to draw) ────── */
+  --glass-bg: 0 0% 100%;
+  --glass-border: 40 20% 84%;
+  --glass-highlight: 0 0% 100% / 0;
+  --glass-blur: 0px;
+  --shadow-card: 0 1px 0 rgb(60 50 20 / 0.04), 0 1px 3px rgb(60 50 20 / 0.06);
+  --shadow-elevated: 0 18px 40px -18px rgb(20 40 30 / 0.35);
+  --glow-primary: 0 0 0 3px hsl(var(--highlight) / 0.25);
+
+  /* ── Background art (faint geometric star pattern) ─────────────────────── */
+  --bg-pattern: hsl(161 40% 30% / 0.06);
+  --bg-orb-1: var(--brand-1);
+  --bg-orb-2: var(--brand-3);
+  --bg-orb-3: var(--brand-2);
+  --bg-orb-opacity: 0;
+  --bg-grid-opacity: 0;
+
+  /* ── Shape & motion ────────────────────────────────────────────────────── */
+  --radius: 0.5rem;
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --duration: 160ms;
+  --header-height: 7.25rem;
+}
+
+/* Dark colours apply on SCREEN only: printed reports, bills and pages always use the
+   light (white-paper) colours above, whatever theme is selected. */
+@media screen {
+  .dark {
+    --background: 165 30% 6%;
+    --foreground: 45 30% 93%;
+    --card: 163 28% 9%;
+    --card-foreground: 45 30% 93%;
+    --popover: 163 30% 9%;
+    --popover-foreground: 45 30% 93%;
+    --primary: 156 55% 42%;
+    --primary-foreground: 165 40% 6%;
+    --primary-soft: 160 40% 14%;
+    --primary-text: 152 55% 58%;
+    --secondary: 163 22% 15%;
+    --secondary-foreground: 45 25% 90%;
+    --muted: 163 22% 13%;
+    --muted-foreground: 150 12% 64%;
+    --accent: 160 30% 15%;
+    --accent-foreground: 152 55% 75%;
+    --border: 163 20% 18%;
+    --input: 163 18% 24%;
+    --ring: 44 80% 55%;
+
+    --destructive: 356 78% 62%;
+    --destructive-soft: 356 45% 15%;
+    --success: 145 55% 50%;
+    --success-soft: 145 40% 12%;
+    --warning: 40 92% 58%;
+    --warning-soft: 35 50% 13%;
+    --info: 205 85% 64%;
+    --info-soft: 207 45% 15%;
+
+    --sidebar: 163 45% 8%;
+    --sidebar-foreground: 45 35% 94%;
+    --sidebar-muted: 150 15% 62%;
+
+    --glass-bg: 163 28% 9%;
+    --glass-border: 163 20% 18%;
+    --shadow-card: 0 1px 0 hsl(45 40% 90% / 0.03) inset, 0 8px 20px -14px rgb(0 0 0 / 0.7);
+    --shadow-elevated: 0 24px 50px -20px rgb(0 0 0 / 0.8);
+
+    --bg-pattern: hsl(44 60% 60% / 0.05);
+  }
+}

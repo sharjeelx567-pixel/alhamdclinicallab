@@ -1,0 +1,310 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import type { OrderDoc, PatientDoc, ReportDoc, ReportSnapshot, ResultDoc, SampleDoc, TestDoc } from '../../common/entities';
+import { conflict, forbidden, notFound, unprocessable } from '../../common/errors';
+import { AuditActor, AuthUser, toActor } from '../../common/types';
+import { getEnv } from '../../config/env';
+import { C, DataStore, WhereClause } from '../../database/data-store';
+import { pad, reserveSequences, verificationCode, yearCode } from '../../utils';
+import { AuditService } from '../audit-logs/audit.service';
+import { transformUrl } from '../media/media-provider';
+import { SettingsService } from '../settings/settings.service';
+import { StorageService } from '../settings/storage.service';
+import { formatRange } from '../tests/reference-range';
+import { orderedParameters, parameterSections } from '../tests/sections';
+import { TestsService } from '../tests/tests.service';
+import { renderReportPdf } from './report-pdf';
+
+/** "25 Y"; under one year from the date of birth: "8 M" or "20 D"; an age entered as 0 without a date of birth: "< 1 Y". */
+function ageText(p: Pick<PatientDoc, 'ageYears' | 'dateOfBirth'>, at = new Date()): string | undefined {
+  if (p.ageYears === undefined) return undefined;
+  if (p.ageYears > 0) return `${p.ageYears} Y`;
+  if (!p.dateOfBirth) return '< 1 Y';
+  const birth = new Date(`${p.dateOfBirth}T00:00:00Z`);
+  const months = (at.getUTCFullYear() - birth.getUTCFullYear()) * 12 + at.getUTCMonth() - birth.getUTCMonth() - (at.getUTCDate() < birth.getUTCDate() ? 1 : 0);
+  if (months >= 1) return `${months} M`;
+  return `${Math.max(0, Math.floor((at.getTime() - birth.getTime()) / 86_400_000))} D`;
+}
+
+let cachedLogo: Buffer | null | undefined;
+/** The bundled logo, already drawn as a full circle (whole logo inside). Read once; works from src (ts-node) and dist, and on Vercel via vercel.json includeFiles. */
+function bundledLogo(): Buffer | undefined {
+  if (cachedLogo === undefined) {
+    const file = join(__dirname, '../../../assets/ahl-logo-round.png');
+    cachedLogo = existsSync(file) ? readFileSync(file) : null;
+  }
+  return cachedLogo ?? undefined;
+}
+
+@Injectable()
+export class ReportsService {
+  private readonly logger = new Logger(ReportsService.name);
+
+  constructor(
+    private readonly store: DataStore,
+    private readonly audit: AuditService,
+    private readonly settings: SettingsService,
+    private readonly storage: StorageService,
+    private readonly testsCatalog: TestsService,
+  ) {}
+
+  /**
+   * Generates a new report version from APPROVED results only. Unapproved tests
+   * appear as "pending" (interim report); a final report requires every test to
+   * be approved. The snapshot is immutable, so reprints are identical.
+   */
+  async generate(orderId: string, actor: AuthUser): Promise<ReportDoc> {
+    // Test categories and parameter order come from the catalogue copy kept in memory
+    // (1 small read when unchanged) instead of reading every category and each test.
+    const [settings, { tests: allTests, categories }] = await Promise.all([this.settings.get(), this.testsCatalog.testsAndCategories()]);
+    const catName = new Map(categories.map((c) => [c.id, c.name]));
+    const testById = new Map(allTests.map((t) => [t.id, t]));
+
+    const report = await this.store.transaction(async (tx) => {
+      const order = await tx.get<OrderDoc>(C.orders, orderId);
+      if (!order) throw notFound('Order');
+      if (order.status === 'cancelled') throw unprocessable('ORDER_CANCELLED', 'Cannot issue a report for a cancelled order');
+      const byOrder: WhereClause[] = [{ field: 'orderId', op: '==', value: orderId }];
+      const results = await tx.query<ResultDoc>(C.results, { where: byOrder });
+      const approved = results.filter((r) => r.status === 'approved');
+      if (!approved.length) throw unprocessable('NO_APPROVED_RESULTS', 'No verified results yet — a report cannot be generated from unverified results');
+      const samples = await tx.query<SampleDoc>(C.samples, { where: byOrder });
+      const previous = await tx.query<ReportDoc>(C.reports, { where: byOrder });
+      const patient = await tx.get<PatientDoc>(C.patients, order.patientId);
+      if (!patient) throw notFound('Patient');
+      const tests = new Map<string, TestDoc>();
+      for (const r of results) {
+        const t = testById.get(r.testId);
+        if (t) tests.set(t.id, t);
+      }
+      const seq = await reserveSequences(tx, { report: 1 });
+
+      const now = this.store.now();
+      const allApproved = approved.length === results.length;
+      const hasAmendment = approved.some((r) => r.version > 1);
+      if (allApproved && previous.some((p) => p.status === 'final' || p.status === 'amended'))
+        throw conflict('REPORT_ALREADY_ISSUED', 'A current report already exists for this order. Reprint it instead.');
+      const version = previous.length + 1;
+      const id = this.store.newId();
+
+      const snapshot: ReportSnapshot = {
+        lab: { name: settings.name, tagline: settings.tagline, address: settings.address, phone: settings.phone, email: settings.email, reportFooter: settings.reportFooter, ...(settings.reportSignatories?.length ? { signatories: settings.reportSignatories } : {}) },
+        patient: {
+          name: patient.name,
+          mrNumber: patient.mrNumber,
+          age: ageText(patient),
+          gender: patient.gender,
+          ...(patient.guardianName ? { guardian: `${patient.guardianName}${patient.guardianRelation && patient.guardianRelation !== 'other' ? ` (${patient.guardianRelation})` : ''}` } : {}),
+          mobile: patient.mobile,
+          ...(() => {
+            const a = patient.address ?? {};
+            const address = [a.line, a.unionCouncil, a.tehsil, a.district].filter(Boolean).join(', ');
+            return address ? { address } : {};
+          })(),
+        },
+        doctorName: order.doctorName,
+        orderNumber: order.orderNumber,
+        centre: settings.collectionCenters.find((c) => c.id === patient.collectionCenterId)?.name ?? settings.branches.find((b) => b.id === patient.branchId)?.name,
+        registeredAt: order.createdAt,
+        samples: samples.filter((s) => s.status !== 'rejected').map((s) => ({ sampleNumber: s.sampleNumber, sampleType: s.sampleType, collectedAt: s.collectedAt })),
+        tests: order.items.map((item) => {
+          const r = results.find((x) => x.id === item.resultId);
+          const t = tests.get(item.testId);
+          const category = t ? (catName.get(t.categoryId) ?? '') : '';
+          if (!r || r.status !== 'approved')
+            return { resultId: item.resultId, testName: item.testName, testCode: item.testCode, category, status: 'pending' as const, values: [] };
+          const order2 = new Map(orderedParameters(t?.parameters ?? []).map((p, k) => [p.id, k]));
+          const sectionOf = parameterSections(t?.parameters ?? []);
+          return {
+            resultId: r.id,
+            testName: r.testName,
+            testCode: r.testCode,
+            category,
+            status: 'approved' as const,
+            resultVersion: r.version,
+            values: [...r.values]
+              .sort((a, b) => (order2.get(a.parameterId) ?? 0) - (order2.get(b.parameterId) ?? 0))
+              .map((v) => {
+                const section = sectionOf.get(v.parameterId);
+                return { parameterName: v.parameterName, value: v.value, unit: v.unit, range: formatRange(v.referenceRange), flag: v.flag, ...(section ? { section } : {}) };
+              }),
+            comment: r.approverComment,
+            approvedBy: r.approvedBy?.name,
+            approvedAt: r.approvedAt,
+            amended: r.version > 1,
+            amendmentReason: r.amendment?.reason,
+          };
+        }),
+        verifiedBy: [...new Set(approved.map((r) => r.approvedBy?.name).filter((n): n is string => !!n))],
+        technicians: [...new Set(approved.map((r) => r.enteredBy?.name).filter((n): n is string => !!n))],
+      };
+
+      const doc: ReportDoc = {
+        id,
+        reportNumber: `RPT-${yearCode(now)}${pad(seq.report[0], 6)}`,
+        orderId,
+        patientId: order.patientId,
+        version,
+        status: !allApproved ? 'interim' : hasAmendment ? 'amended' : 'final',
+        snapshot,
+        verificationCode: verificationCode(),
+        generatedBy: toActor(actor),
+        generatedAt: now,
+        printCount: 0,
+      };
+      tx.create(C.reports, id, doc);
+      for (const p of previous.filter((p) => p.status !== 'superseded')) tx.update(C.reports, p.id, { status: 'superseded', supersededBy: id });
+      this.audit.recordInTx(tx, { action: 'report.generate', entity: 'report', entityId: id, actor: toActor(actor), changes: { orderId, version, status: doc.status } });
+      return doc;
+    });
+    return report;
+  }
+
+  async list(filters: { patientId?: string; orderId?: string; status?: string }, limit: number, cursor?: string) {
+    const where: WhereClause[] = [];
+    if (filters.patientId) where.push({ field: 'patientId', op: '==', value: filters.patientId });
+    if (filters.orderId) where.push({ field: 'orderId', op: '==', value: filters.orderId });
+    if (filters.status) where.push({ field: 'status', op: '==', value: filters.status });
+    const res = await this.store.query<ReportDoc>(C.reports, { where, orderBy: { field: 'generatedAt', direction: 'desc' }, limit, cursor });
+    return {
+      ...res,
+      items: res.items.map(({ snapshot, ...r }) => ({ ...r, patientName: snapshot.patient.name, mrNumber: snapshot.patient.mrNumber, orderNumber: snapshot.orderNumber, testCount: snapshot.tests.length })),
+    };
+  }
+
+  async get(id: string): Promise<ReportDoc> {
+    const r = await this.store.get<ReportDoc>(C.reports, id);
+    if (!r) throw notFound('Report');
+    return r;
+  }
+
+  async prints(id: string) {
+    return (await this.store.query(C.reportPrints, { where: [{ field: 'reportId', op: '==', value: id }], orderBy: { field: 'at', direction: 'desc' } })).items;
+  }
+
+  /** Records every print / download — the "reprint history". */
+  async recordPrint(id: string, channel: 'pdf' | 'browser' | 'qr', actor: AuthUser | AuditActor): Promise<ReportDoc> {
+    const by: AuditActor = 'displayName' in actor ? toActor(actor) : actor;
+    const report = await this.store.transaction(async (tx) => {
+      const r = await tx.get<ReportDoc>(C.reports, id);
+      if (!r) throw notFound('Report');
+      const printId = this.store.newId();
+      tx.update(C.reports, id, { printCount: r.printCount + 1 });
+      tx.create(C.reportPrints, printId, { id: printId, reportId: id, channel, by, at: this.store.now(), copy: r.printCount + 1 });
+      this.audit.recordInTx(tx, { action: r.printCount ? 'report.reprint' : 'report.print', entity: 'report', entityId: id, actor: by, changes: { channel, copy: r.printCount + 1 } });
+      return r;
+    });
+    return report;
+  }
+
+  async pdf(id: string, actor: AuthUser | AuditActor, channel: 'pdf' | 'qr' = 'pdf'): Promise<{ buffer: Buffer; filename: string }> {
+    const report = await this.recordPrint(id, channel, actor);
+    const settings = await this.settings.get();
+    // The round Al Hamd logo shipped with the app (backend/assets/ahl-logo-round.png) is always
+    // preferred: it shows the whole logo inside the circle. An uploaded logo is only a fallback.
+    let logo = bundledLogo();
+    const logoIsRound = !!logo;
+    if (!logo) {
+      try {
+        if (settings.logo) {
+          // PDFKit embeds PNG/JPEG only, so ask Cloudinary for a PNG at print size.
+          const res = await fetch(transformUrl(settings.logo.secureUrl, 'f_png,w_600,c_limit'), { signal: AbortSignal.timeout(8000) });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          logo = Buffer.from(await res.arrayBuffer());
+        } else if (settings.logoPath) logo = await this.storage.download(settings.logoPath);
+      } catch (err) {
+        this.logger.warn(`Logo unavailable for report PDF: ${(err as Error).message}`);
+      }
+    }
+    const buffer = await renderReportPdf(report, getEnv().REPORT_VERIFY_BASE_URL, logo, { signatories: settings.reportSignatories, phone: settings.phone, address: settings.address, logoIsRound });
+    return { buffer, filename: `${report.reportNumber}-v${report.version}.pdf` };
+  }
+
+  /**
+   * Public QR page. Anyone holding the printed report (its QR code carries a random
+   * 10-character code, rate limited) can confirm it is genuine. The full report is
+   * shown ONLY when it is the current version and the bill is fully paid; with any
+   * balance due the page asks the patient to clear it at the laboratory first.
+   */
+  async verify(code: string) {
+    const r = await this.byVerificationCode(code);
+    return r ? this.present(r) : { valid: false as const };
+  }
+
+  /**
+   * QR on the BILL (printed before any report exists): finds the order by its access code
+   * and shows its current report with the same rules as the report QR.
+   */
+  async byOrderCode(code: string) {
+    const order = await this.orderByAccessCode(code);
+    if (!order) return { valid: false as const };
+    const r = await this.currentReport(order.id);
+    if (!r) return { valid: true as const, laboratory: (await this.settings.get()).name, access: 'not_ready' as const, orderNumber: order.orderNumber };
+    return this.present(r);
+  }
+
+  async publicPdfByOrderCode(code: string): Promise<{ buffer: Buffer; filename: string }> {
+    const order = await this.orderByAccessCode(code);
+    const r = order ? await this.currentReport(order.id) : undefined;
+    if (!r) throw notFound('Report');
+    return this.publicPdfFor(r);
+  }
+
+  private async byVerificationCode(code: string): Promise<ReportDoc | undefined> {
+    const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+    return (await this.store.query<ReportDoc>(C.reports, { where: [{ field: 'verificationCode', op: '==', value: clean }], limit: 1 })).items[0];
+  }
+
+  private async orderByAccessCode(code: string): Promise<OrderDoc | undefined> {
+    const clean = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 16);
+    if (clean.length < 10) return undefined;
+    return (await this.store.query<OrderDoc>(C.orders, { where: [{ field: 'accessCode', op: '==', value: clean }], limit: 1 })).items[0];
+  }
+
+  /** Newest report of the order that has not been replaced. */
+  private async currentReport(orderId: string): Promise<ReportDoc | undefined> {
+    const all = (await this.store.query<ReportDoc>(C.reports, { where: [{ field: 'orderId', op: '==', value: orderId }] })).items;
+    return all.filter((r) => r.status !== 'superseded').sort((a, b) => b.version - a.version)[0];
+  }
+
+  private async present(r: ReportDoc) {
+    const initials = r.snapshot.patient.name.split(/\s+/).map((w) => `${w[0]}.`).join(' ');
+    const base = {
+      valid: true as const,
+      laboratory: r.snapshot.lab.name,
+      reportNumber: r.reportNumber,
+      version: r.version,
+      status: r.status,
+      generatedAt: r.generatedAt,
+      patientInitials: initials,
+      mrNumberMasked: r.snapshot.patient.mrNumber.replace(/.(?=.{3})/g, '•'),
+      current: r.status !== 'superseded',
+    };
+    const access = await this.publicAccess(r);
+    if (access !== 'released') return { ...base, access };
+    const { id, reportNumber, version, status, snapshot, verificationCode, generatedAt } = r;
+    return { ...base, access, report: { id, reportNumber, version, status, snapshot, verificationCode, generatedAt } };
+  }
+
+  /** PDF download from the public QR page: same rules as `verify`. */
+  async publicPdf(code: string): Promise<{ buffer: Buffer; filename: string }> {
+    const r = await this.byVerificationCode(code);
+    if (!r) throw notFound('Report');
+    return this.publicPdfFor(r);
+  }
+
+  private async publicPdfFor(r: ReportDoc): Promise<{ buffer: Buffer; filename: string }> {
+    const access = await this.publicAccess(r);
+    if (access === 'payment_pending') throw forbidden('Payment is pending. Please clear the balance at the laboratory to download this report.');
+    if (access !== 'released') throw forbidden('This report is not available for download. Please contact the laboratory.');
+    return this.pdf(r.id, { uid: 'public-qr', name: 'Patient (QR code)', role: 'system' }, 'qr');
+  }
+
+  private async publicAccess(r: ReportDoc): Promise<'released' | 'superseded' | 'payment_pending' | 'unavailable'> {
+    if (r.status === 'superseded') return 'superseded';
+    const order = await this.store.get<OrderDoc>(C.orders, r.orderId);
+    if (!order || order.status === 'cancelled') return 'unavailable';
+    return order.billing.balance > 0 ? 'payment_pending' : 'released';
+  }
+}

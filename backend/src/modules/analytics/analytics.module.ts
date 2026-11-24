@@ -1,0 +1,280 @@
+import { Controller, Get, Injectable, Module, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import type { AnalyzerDoc, AuditLogDoc, CatalogIndexDoc, DoctorDoc, OrderDoc, PatientDoc, PaymentDoc, ResultDoc, TestCategoryDoc } from '../../common/entities';
+import type { AuthUser } from '../../common/types';
+import { getEnv } from '../../config/env';
+import { C, DataStore } from '../../database/data-store';
+import { CurrentUser, RequirePermissions } from '../../decorators';
+import { labDateKey, labDayStart, round2 } from '../../utils';
+import { InventoryModule, InventoryService } from '../inventory/inventory.module';
+import { HEARTBEAT_STALE_MS } from '../analyzers/analyzers.service';
+import { usage } from '../../common/usage-monitor';
+
+const DAY = 86400_000;
+
+@Injectable()
+export class AnalyticsService {
+  constructor(
+    private readonly store: DataStore,
+    private readonly inventory: InventoryService,
+  ) {}
+
+  private get tz() {
+    return getEnv().LAB_TIMEZONE;
+  }
+
+  /**
+   * Short-lived results of the heavier statistics, kept inside this server only and
+   * returned only through the permission-checked endpoints below (database read quota).
+   */
+  private memo = new Map<string, { at: number; value: unknown }>();
+  private async cached<T>(key: string, ttlMs: number, fn: () => Promise<T>): Promise<T> {
+    const hit = this.memo.get(key);
+    const fresh = !!hit && Date.now() - hit.at < ttlMs;
+    usage.cache(`analytics:${key.split(':')[0]}`, fresh);
+    if (fresh) return hit!.value as T;
+    const value = await fn();
+    if (this.memo.size > 50) this.memo.clear();
+    this.memo.set(key, { at: Date.now(), value });
+    return value;
+  }
+
+  private dayKeys(days: number): string[] {
+    const today = labDayStart(this.tz);
+    return Array.from({ length: days }, (_, i) => labDateKey(this.tz, new Date(today.getTime() - (days - 1 - i) * DAY + 12 * 3600_000)));
+  }
+
+  /** Dashboard: every figure is computed from live records. Sections are included only if the user may see them. */
+  /**
+   * The dashboard is the landing page and is opened often. Its figures are reused for 30 s
+   * (inside this server only) and only for users with exactly the same permissions, who would
+   * be shown the same sections and figures anyway.
+   */
+  async dashboard(user: AuthUser) {
+    const key = `dashboard:${[...user.permissions].sort().join(',')}`;
+    return this.cached(key, 30_000, () => this.buildDashboard(user));
+  }
+
+  private async buildDashboard(user: AuthUser) {
+    const can = (p: string) => user.permissions.includes(p as never);
+    const todayStart = labDayStart(this.tz).toISOString();
+    const todayKey = labDateKey(this.tz, new Date());
+    const out: Record<string, unknown> = { generatedAt: this.store.now(), timeZone: this.tz };
+
+    if (can('patients.read')) {
+      out.patients = {
+        total: await this.store.count(C.patients, [{ field: 'status', op: '==', value: 'active' }]),
+        today: await this.store.count(C.patients, [{ field: 'createdAt', op: '>=', value: todayStart }]),
+      };
+      const recent = await this.store.query<PatientDoc>(C.patients, { orderBy: { field: 'createdAt', direction: 'desc' }, limit: 6 });
+      out.recentPatients = recent.items.map((p) => ({ id: p.id, mrNumber: p.mrNumber, name: p.name, gender: p.gender, ageYears: p.ageYears, createdAt: p.createdAt }));
+      // One COUNT per day (aggregation) instead of reading every patient of the week.
+      const start = labDayStart(this.tz).getTime();
+      const keys = this.dayKeys(7);
+      out.weeklyRegistrations = await this.cached(`weekly:${keys[6]}`, 120_000, () =>
+        Promise.all(
+          keys.map(async (date, i) => {
+            const from = new Date(start - (6 - i) * DAY).toISOString();
+            const to = new Date(start - (5 - i) * DAY).toISOString();
+            return { date, count: await this.store.count(C.patients, [{ field: 'createdAt', op: '>=', value: from }, { field: 'createdAt', op: '<', value: to }]) };
+          }),
+        ),
+      );
+    }
+
+    if (can('orders.read')) {
+      const statusCount = (s: string) => this.store.count(C.orders, [{ field: 'status', op: '==', value: s }]);
+      out.orders = {
+        today: await this.store.count(C.orders, [{ field: 'createdAt', op: '>=', value: todayStart }]),
+        completedTotal: await statusCount('completed'),
+        verificationPending: await statusCount('verification_pending'),
+      };
+      const recent = await this.store.query<OrderDoc>(C.orders, { orderBy: { field: 'createdAt', direction: 'desc' }, limit: 6 });
+      out.recentOrders = recent.items.map((o) => ({ id: o.id, orderNumber: o.orderNumber, patientName: o.patientName, status: o.status, total: o.billing.total, priority: o.priority, createdAt: o.createdAt }));
+      // Top tests of the last 30 days: reads that month's orders, so it is recomputed at most every 15 minutes.
+      out.testDistribution = await this.cached('testDistribution', 15 * 60_000, async () => {
+        const since = new Date(Date.now() - 30 * DAY).toISOString();
+        const month = await this.store.query<OrderDoc>(C.orders, { where: [{ field: 'createdAt', op: '>=', value: since }] });
+        const dist = new Map<string, number>();
+        month.items.filter((o) => o.status !== 'cancelled').forEach((o) => o.items.forEach((i) => dist.set(i.testName, (dist.get(i.testName) ?? 0) + 1)));
+        return [...dist].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 8);
+      });
+    }
+
+    if (can('samples.read')) {
+      const s = (status: string) => this.store.count(C.samples, [{ field: 'status', op: '==', value: status }]);
+      out.samples = { pendingCollection: await s('pending_collection'), awaitingReceipt: await s('collected'), received: await s('received'), processing: (await s('processing')) + (await s('accepted')) };
+    }
+
+    if (can('results.read')) {
+      const r = (status: string) => this.store.count(C.results, [{ field: 'status', op: '==', value: status }]);
+      out.results = { pending: (await r('pending')) + (await r('draft')) + (await r('correction_requested')), awaitingVerification: await r('submitted') };
+      const critical = await this.store.query<ResultDoc>(C.results, { where: [{ field: 'hasCritical', op: '==', value: true }], orderBy: { field: 'updatedAt', direction: 'desc' }, limit: 5 });
+      out.criticalResults = critical.items.map((x) => ({ id: x.id, orderId: x.orderId, orderNumber: x.orderNumber, testCode: x.testCode, status: x.status, updatedAt: x.updatedAt }));
+    }
+
+    if (can('reports.read')) {
+      out.reports = { total: await this.store.count(C.reports, [{ field: 'status', op: 'in', value: ['final', 'amended'] }]) };
+    }
+
+    if (can('billing.read')) {
+      const todays = await this.store.query<PaymentDoc>(C.payments, { where: [{ field: 'businessDate', op: '==', value: todayKey }] });
+      // Unpaid balances: SUM + COUNT aggregations instead of reading every unpaid order ever.
+      const unpaid = [{ field: 'billing.balance', op: '>' as const, value: 0 }];
+      const [outstanding, outstandingOrders] = await Promise.all([this.store.sum(C.orders, 'billing.balance', unpaid), this.store.count(C.orders, unpaid)]);
+      out.revenue = {
+        today: round2(todays.items.reduce((s, p) => s + (p.type === 'payment' ? p.amount : -p.amount), 0)),
+        outstanding: round2(outstanding),
+        outstandingOrders,
+      };
+      out.monthlyRevenue = await this.monthlyRevenue(6);
+    }
+
+    if (can('analyzers.read')) {
+      const analyzers = await this.store.query<AnalyzerDoc>(C.analyzers, {});
+      out.analyzers = analyzers.items.map((a) => {
+        const fresh = a.lastHeartbeatAt && Date.now() - Date.parse(a.lastHeartbeatAt) < HEARTBEAT_STALE_MS;
+        return { id: a.id, name: a.name, mode: a.mode, enabled: a.enabled, integrationStatus: a.integrationStatus, connectionState: a.connectionState === 'connected' && !fresh ? 'disconnected' : a.connectionState, lastMessageAt: a.lastMessageAt };
+      });
+    }
+
+    if (can('inventory.read')) {
+      const alerts = await this.inventory.alerts();
+      out.inventory = { lowStock: alerts.lowStock.length, expiringSoon: alerts.expiringSoon.length, expired: alerts.expired.length, items: [...alerts.lowStock, ...alerts.expired].slice(0, 5).map((i) => ({ id: i.id, name: i.name, quantity: i.quantity, unit: i.unit, minimumLevel: i.minimumLevel, expiryDate: i.expiryDate })) };
+    }
+    return out;
+  }
+
+  /** Net collections of one month (payments minus refunds), from that month's payments. */
+  private async monthNet(month: string): Promise<number> {
+    const payments = await this.store.query<PaymentDoc>(C.payments, { where: [{ field: 'businessDate', op: '>=', value: `${month}-01` }, { field: 'businessDate', op: '<=', value: `${month}-31` }] });
+    return round2(payments.items.reduce((s, p) => s + (p.type === 'payment' ? p.amount : -p.amount), 0));
+  }
+
+  /**
+   * Last N months of net revenue. A finished month cannot change any more (payments are
+   * never edited; refunds are new payments dated the day they are made), so its total is
+   * saved once in monthlyStats and read back as ONE document. Only the current month is
+   * computed from its payments, at most every 5 minutes.
+   */
+  async monthlyRevenue(months: number) {
+    const current = labDateKey(this.tz, new Date()).slice(0, 7);
+    // A month is "closed" (saved for good) only 2 hours after it ended, so a payment whose
+    // request started just before midnight on the last day has certainly been committed.
+    const settled = labDateKey(this.tz, new Date(Date.now() - 2 * 3600_000)).slice(0, 7);
+    const [y, m] = current.split('-').map(Number);
+    const keys = Array.from({ length: months }, (_, i) => new Date(Date.UTC(y, m - 1 - (months - 1 - i), 1)).toISOString().slice(0, 7));
+    return this.cached(`monthly:${current}:${settled}:${months}`, 5 * 60_000, () =>
+      Promise.all(
+        keys.map(async (month) => {
+          if (month >= settled) return { month, revenue: await this.monthNet(month) };
+          // Same document id for the same month: two servers computing it at once write the same value once more, never a second total.
+          const saved = await this.store.get<{ id: string; revenue: number }>(C.monthlyStats, `revenue-${month}`);
+          if (saved) return { month, revenue: saved.revenue };
+          const revenue = await this.monthNet(month);
+          await this.store.set(C.monthlyStats, `revenue-${month}`, { id: `revenue-${month}`, month, revenue, computedAt: this.store.now() });
+          return { month, revenue };
+        }),
+      ),
+    );
+  }
+
+  /** Management analytics over a date range (lab-local dates, inclusive). */
+  async range(from: string, to: string) {
+    // Reads every order/payment/patient in the range: identical requests within 5 minutes reuse the result.
+    return this.cached(`range:${from}:${to}`, 5 * 60_000, () => this.computeRange(from, to));
+  }
+
+  private async computeRange(from: string, to: string) {
+    const fromIso = labDayStart(this.tz, new Date(`${from}T12:00:00Z`)).toISOString();
+    const toIso = new Date(labDayStart(this.tz, new Date(`${to}T12:00:00Z`)).getTime() + DAY - 1).toISOString();
+    const [orders, payments, patients, tests, categories, doctors, audit] = await Promise.all([
+      this.store.query<OrderDoc>(C.orders, { where: [{ field: 'createdAt', op: '>=', value: fromIso }, { field: 'createdAt', op: '<=', value: toIso }] }),
+      this.store.query<PaymentDoc>(C.payments, { where: [{ field: 'businessDate', op: '>=', value: from }, { field: 'businessDate', op: '<=', value: to }] }),
+      this.store.query<PatientDoc>(C.patients, { where: [{ field: 'createdAt', op: '>=', value: fromIso }, { field: 'createdAt', op: '<=', value: toIso }] }),
+      // The catalogue index holds every test's category in ONE document (not ~850 reads).
+      this.store.get<CatalogIndexDoc>(C.catalogIndex, 'main'),
+      this.store.query<TestCategoryDoc>(C.testCategories, {}),
+      this.store.query<DoctorDoc>(C.doctors, {}),
+      this.store.query<AuditLogDoc>(C.auditLogs, { where: [{ field: 'at', op: '>=', value: fromIso }, { field: 'at', op: '<=', value: toIso }], limit: 5000 }),
+    ]);
+    const active = orders.items.filter((o) => o.status !== 'cancelled');
+    const daily = new Map<string, { date: string; patients: number; orders: number; revenue: number }>();
+    const day = (k: string) => daily.get(k) ?? daily.set(k, { date: k, patients: 0, orders: 0, revenue: 0 }).get(k)!;
+    patients.items.forEach((p) => day(labDateKey(this.tz, new Date(p.createdAt))).patients++);
+    active.forEach((o) => day(labDateKey(this.tz, new Date(o.createdAt))).orders++);
+    payments.items.forEach((p) => (day(p.businessDate).revenue += p.type === 'payment' ? p.amount : -p.amount));
+
+    const testCat = new Map((tests?.tests ?? []).map((t) => [t.id, t.categoryId]));
+    const catName = new Map(categories.items.map((c) => [c.id, c.name]));
+    const byTest = new Map<string, { testName: string; category: string; count: number; revenue: number }>();
+    active.forEach((o) =>
+      o.items.forEach((i) => {
+        const e = byTest.get(i.testId) ?? { testName: i.testName, category: catName.get(testCat.get(i.testId) ?? '') ?? '', count: 0, revenue: 0 };
+        e.count++;
+        e.revenue += i.unitPrice;
+        byTest.set(i.testId, e);
+      }),
+    );
+    const docName = new Map(doctors.items.map((d) => [d.id, d.name]));
+    const byDoctor = new Map<string, { doctorName: string; orders: number; revenue: number }>();
+    active.filter((o) => o.doctorId).forEach((o) => {
+      const e = byDoctor.get(o.doctorId!) ?? { doctorName: docName.get(o.doctorId!) ?? o.doctorName ?? '—', orders: 0, revenue: 0 };
+      e.orders++;
+      e.revenue += o.billing.total;
+      byDoctor.set(o.doctorId!, e);
+    });
+    const staff = new Map<string, { name: string; role: string; actions: number }>();
+    audit.items.filter((a) => a.actor.role !== 'system' && a.actor.role !== 'bridge').forEach((a) => {
+      const e = staff.get(a.actor.uid) ?? { name: a.actor.name, role: a.actor.role, actions: 0 };
+      e.actions++;
+      staff.set(a.actor.uid, e);
+    });
+
+    return {
+      from,
+      to,
+      totals: {
+        patients: patients.items.length,
+        orders: active.length,
+        cancelledOrders: orders.items.length - active.length,
+        completedOrders: active.filter((o) => o.status === 'completed').length,
+        billed: round2(active.reduce((s, o) => s + o.billing.total, 0)),
+        collected: round2(payments.items.filter((p) => p.type === 'payment').reduce((s, p) => s + p.amount, 0)),
+        refunded: round2(payments.items.filter((p) => p.type === 'refund').reduce((s, p) => s + p.amount, 0)),
+        outstanding: round2(active.reduce((s, o) => s + o.billing.balance, 0)),
+        discounts: round2(active.reduce((s, o) => s + o.billing.discountAmount, 0)),
+      },
+      daily: [...daily.values()].sort((a, b) => a.date.localeCompare(b.date)).map((d) => ({ ...d, revenue: round2(d.revenue) })),
+      tests: [...byTest.values()].sort((a, b) => b.count - a.count),
+      doctors: [...byDoctor.values()].sort((a, b) => b.orders - a.orders),
+      staffActivity: [...staff.values()].sort((a, b) => b.actions - a.actions),
+      inventoryConsumption: await this.inventory.consumption(fromIso, toIso),
+    };
+  }
+}
+
+@ApiTags('Analytics')
+@ApiBearerAuth()
+@Controller('analytics')
+export class AnalyticsController {
+  constructor(private readonly analytics: AnalyticsService) {}
+
+  /** Role-aware: sections the user cannot access are omitted. */
+  @Get('dashboard')
+  dashboard(@CurrentUser() user: AuthUser) {
+    return this.analytics.dashboard(user);
+  }
+
+  @Get('range')
+  @RequirePermissions('analytics.read')
+  range(@Query('from') from?: string, @Query('to') to?: string) {
+    const valid = (d?: string) => (d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : undefined);
+    const today = labDateKey(getEnv().LAB_TIMEZONE, new Date());
+    const start = valid(from) ?? `${today.slice(0, 8)}01`;
+    return this.analytics.range(start, valid(to) ?? today);
+  }
+}
+
+@Module({ imports: [InventoryModule], controllers: [AnalyticsController], providers: [AnalyticsService] })
+export class AnalyticsModule {}
