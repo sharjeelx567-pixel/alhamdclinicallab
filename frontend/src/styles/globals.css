@@ -54,12 +54,11 @@
     scrollbar-color: hsl(var(--muted-foreground) / 0.3) transparent;
   }
 
-  /* Solid "paper" surface used by cards, menus and dialogs (no blur: cheap to draw).
-     A thin gold hairline along the top edge is the Al Hamd signature. */
+  /* Solid white surface used by cards, menus and dialogs (no blur: cheap to draw). */
   .glass {
     background: hsl(var(--glass-bg));
     border: 1px solid hsl(var(--glass-border));
-    box-shadow: var(--shadow-card), inset 0 2px 0 hsl(var(--highlight) / 0.55);
+    box-shadow: var(--shadow-card);
   }
   /* Interactive glass: lifts and glows on hover (transform/opacity only — GPU friendly). */
   .glass-hover {
@@ -140,7 +139,7 @@
 .card-in:nth-child(7) { animation-delay: 360ms; }
 .card-in:nth-child(n + 8) { animation-delay: 420ms; }
 .card-hover { transition: box-shadow 0.3s ease, border-color 0.3s ease; }
-.card-hover:hover { border-color: hsl(var(--highlight) / 0.45); box-shadow: var(--shadow-card), 0 10px 24px -16px hsl(var(--primary) / 0.35); }
+.card-hover:hover { border-color: hsl(var(--primary) / 0.25); }
 
 /* Table rows slide in one after another */
 @keyframes row-in { from { opacity: 0; } }
@@ -181,11 +180,11 @@ tbody > tr:nth-child(n + 16) { animation-delay: 450ms; }
 
 /* Glowing logo ring: spinning rainbow of brand colours + breathing halo */
 @keyframes logo-halo {
-  0%, 100% { box-shadow: 0 0 8px 1px hsl(var(--brand-1) / 0.6), 0 0 22px 4px hsl(var(--brand-2) / 0.35); }
-  50% { box-shadow: 0 0 14px 3px hsl(var(--highlight) / 0.6), 0 0 34px 9px hsl(var(--brand-1) / 0.45); }
+  0%, 100% { box-shadow: 0 0 8px 1px rgb(212 175 55 / 0.55), 0 0 22px 4px rgb(212 175 55 / 0.25); }
+  50% { box-shadow: 0 0 14px 3px rgb(212 175 55 / 0.6), 0 0 30px 8px rgb(184 134 11 / 0.3); }
 }
 .logo-glow-ring {
-  background: conic-gradient(from 0deg, hsl(var(--brand-1)), hsl(var(--brand-3)), hsl(var(--brand-2)), hsl(var(--highlight)), hsl(var(--brand-1)));
+  background: conic-gradient(from 0deg, #b8860b, #f3d27a, #1c1c1e, #f3d27a, #b8860b);
   animation: loader-spin 3.2s linear infinite, logo-halo 2.6s ease-in-out infinite;
 }
 .logo-glow-ring::after {
@@ -212,7 +211,7 @@ tbody > tr:nth-child(n + 16) { animation-delay: 450ms; }
 }
 .hero-logo-float { animation: hero-float 5s ease-in-out infinite; }
 .hero-logo-aura {
-  background: radial-gradient(circle, hsl(var(--brand-1) / 0.55), hsl(var(--brand-2) / 0.35) 45%, hsl(var(--highlight) / 0.15) 65%, transparent 72%);
+  background: radial-gradient(circle, rgb(212 175 55 / 0.45), rgb(212 175 55 / 0.18) 45%, transparent 70%);
   filter: blur(18px);
   animation: hero-aura 3.6s ease-in-out infinite;
 }
@@ -222,16 +221,16 @@ tbody > tr:nth-child(n + 16) { animation-delay: 450ms; }
   width: 40%;
   animation: hero-shine 4.5s ease-in-out infinite;
 }
-.hero-orbit { border: 1.5px dashed hsl(var(--brand-1) / 0.35); animation: loader-spin 14s linear infinite; }
-.hero-orbit-2 { border-color: hsl(var(--brand-2) / 0.25); animation-duration: 22s; animation-direction: reverse; }
+.hero-orbit { border: 1.5px dashed rgb(184 134 11 / 0.35); animation: loader-spin 14s linear infinite; }
+.hero-orbit-2 { border-color: rgb(28 28 30 / 0.18); animation-duration: 22s; animation-direction: reverse; }
 .hero-orbit-3 { border-style: dotted; border-color: hsl(var(--highlight) / 0.35); animation-duration: 9s; }
 .hero-orbit-dot {
   position: absolute; top: -6px; left: 50%; width: 12px; height: 12px; margin-left: -6px;
-  border-radius: 9999px; box-shadow: 0 0 12px 3px currentColor; color: hsl(var(--brand-1) / 0.8);
+  border-radius: 9999px; box-shadow: 0 0 12px 3px currentColor; color: rgb(212 175 55 / 0.8);
 }
 .hero-sparkle {
   position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px;
-  border-radius: 9999px; background: #fff; box-shadow: 0 0 10px 3px hsl(var(--brand-1) / 0.8);
+  border-radius: 9999px; background: #fff; box-shadow: 0 0 10px 3px rgb(212 175 55 / 0.8);
   transform-origin: 4px 4px;
   animation: hero-sparkle 3s ease-in-out infinite;
   animation-delay: calc(var(--i) * 0.38s);
@@ -264,7 +263,7 @@ tbody > tr:nth-child(n + 16) { animation-delay: 450ms; }
 .ahl-pattern-layer {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='72' height='72' viewBox='0 0 72 72'%3E%3Cg fill='none' stroke='%230B5D45' stroke-width='1'%3E%3Crect x='24' y='24' width='24' height='24'/%3E%3Crect x='24' y='24' width='24' height='24' transform='rotate(45 36 36)'/%3E%3Cpath d='M0 36H12M60 36H72M36 0V12M36 60V72'/%3E%3C/g%3E%3C/svg%3E");
   background-size: 72px 72px;
-  opacity: 0.07;
+  opacity: 0.045;
 }
 @media screen {
   .dark .ahl-pattern-layer { filter: invert(1) sepia(1) saturate(3) hue-rotate(5deg); opacity: 0.05; }

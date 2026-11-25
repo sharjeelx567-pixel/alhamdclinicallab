@@ -78,7 +78,7 @@ export const NAV: NavGroup[] = [
   {
     label: 'Administration',
     items: [
-      { label: 'Staff & roles', href: '/staff', icon: UserCog, permission: 'users.read' },
+      { label: 'Staff', href: '/staff', icon: UserCog, permission: 'users.read' },
       { label: 'Audit logs', href: '/audit-logs', icon: ScrollText, permission: 'audit.read' },
       { label: 'Notifications', href: '/notifications', icon: Bell, permission: 'notifications.read' },
       { label: 'Settings', href: '/settings', icon: Settings, permission: 'settings.read' },
@@ -89,19 +89,12 @@ export const NAV: NavGroup[] = [
 export const ROUTE_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', register: 'Register & bill', patients: 'Patients', new: 'New', orders: 'Orders', 'home-sampling': 'Home sampling', doctors: 'Doctors', samples: 'Samples',
   results: 'Result entry', verification: 'Verification', reports: 'Reports', analyzers: 'Analyzers', messages: 'Messages', tests: 'Test catalogue',
-  billing: 'Billing', invoice: 'Invoice', panels: 'Insurance & panels', inventory: 'Inventory', analytics: 'Analytics', staff: 'Staff & roles',
+  billing: 'Billing', invoice: 'Invoice', panels: 'Insurance & panels', inventory: 'Inventory', analytics: 'Analytics', staff: 'Staff',
   'audit-logs': 'Audit logs', notifications: 'Notifications', settings: 'Settings', profile: 'My profile', system: 'System', usage: 'Database usage',
 };
 
-export const ROLE_OPTIONS = [
-  { value: 'super_admin', label: 'Super Admin' },
-  { value: 'lab_admin', label: 'Lab Administrator' },
-  { value: 'receptionist', label: 'Receptionist' },
-  { value: 'lab_technician', label: 'Lab Technician' },
-  { value: 'pathologist', label: 'Pathologist / Result Approver' },
-  { value: 'accountant', label: 'Accountant' },
-  { value: 'inventory_manager', label: 'Inventory Manager' },
-] as const;
+/** AL HAMD has one staff role: Admin (full access). */
+export const ROLE_OPTIONS = [{ value: 'super_admin', label: 'Admin' }] as const;
 
 type StatusMap = Record<string, { label: string; tone: BadgeTone }>;
 

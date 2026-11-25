@@ -17,6 +17,8 @@ const EnvSchema = z
     FIREBASE_PRIVATE_KEY: z.string().optional(),
     /** Whole service-account JSON in one variable (for hosts without files, e.g. Vercel). */
     FIREBASE_SERVICE_ACCOUNT: z.string().optional(),
+    /** PUBLIC Firebase Web API key: lets the server sign staff in (browser never calls Google directly). */
+    FIREBASE_WEB_API_KEY: z.string().optional(),
     /** Shared secret Vercel Cron sends as "Authorization: Bearer <CRON_SECRET>". */
     CRON_SECRET: z.string().optional(),
     BRIDGE_TOKEN_HASHES: z.string().default(''),

@@ -1,6 +1,5 @@
 'use client';
 
-import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from 'firebase/auth';
 import { KeyRound, LogIn, LogOut } from 'lucide-react';
 import * as React from 'react';
 import { toast } from 'sonner';
@@ -12,11 +11,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Field, Input } from '@/components/ui/form-controls';
 import { AUTH_MODE, useAuth } from '@/features/auth/auth-provider';
 import { useApi } from '@/hooks/use-api';
-import { getFirebaseAuth } from '@/lib/firebase';
+import { api, errorMessage } from '@/lib/api-client';
 import { formatDateTime } from '@/lib/utils';
 import { authService } from '@/services/admin.service';
 
 function ChangePassword() {
+  const { setSession } = useAuth();
   const [current, setCurrent] = React.useState('');
   const [next, setNext] = React.useState('');
   const [confirm, setConfirm] = React.useState('');
@@ -31,19 +31,16 @@ function ChangePassword() {
         setError(undefined);
         if (next.length < 10) return setError('New password must be at least 10 characters');
         if (next !== confirm) return setError('Passwords do not match');
-        const user = getFirebaseAuth().currentUser;
-        if (!user?.email) return setError('Session not found — sign in again');
         setPending(true);
         try {
-          await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, current));
-          await updatePassword(user, next);
+          // Checked and changed by the server; the new session keeps this tab signed in.
+          setSession(await api.post<{ idToken: string; refreshToken: string; expiresIn: number }>('/auth/change-password', { currentPassword: current, newPassword: next }));
           toast.success('Password changed');
           setCurrent('');
           setNext('');
           setConfirm('');
         } catch (err) {
-          const code = (err as { code?: string }).code;
-          setError(code === 'auth/invalid-credential' || code === 'auth/wrong-password' ? 'Current password is incorrect' : code === 'auth/weak-password' ? 'Choose a stronger password' : 'Could not change password. Try again.');
+          setError((err as { code?: string }).code === 'INVALID_CREDENTIALS' ? 'Current password is incorrect' : errorMessage(err));
         } finally {
           setPending(false);
         }

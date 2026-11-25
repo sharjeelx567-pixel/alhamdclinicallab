@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS: Omit<LabSettingsDoc, 'updatedAt'> = {
   collectionCenters: [],
   patientCategories: ['General', 'Staff', 'Panel', 'Welfare'],
   billing: { maxDiscountPercent: 20, currency: 'PKR' },
-  results: { allowSelfVerification: false, criticalEscalationMinutes: 30 },
+  results: { allowSelfVerification: true, criticalEscalationMinutes: 30 },
   barcode: { format: 'CODE128', labelWidthMm: 50, labelHeightMm: 25 },
   notifications: { lowStock: true, expiryDays: 30, criticalResults: true },
   retention: { auditLogYears: 10, reportYears: 10 },

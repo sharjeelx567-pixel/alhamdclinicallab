@@ -62,8 +62,14 @@ export const ROLE_IDS = [
 ] as const;
 export type RoleId = (typeof ROLE_IDS)[number];
 
+/**
+ * AL HAMD uses ONE staff role: Admin (internally `super_admin`, every permission).
+ * The other role ids stay defined for compatibility but can no longer be assigned.
+ */
+export const ASSIGNABLE_ROLE_IDS = ['super_admin'] as const;
+
 export const ROLE_LABELS: Record<RoleId, string> = {
-  super_admin: 'Super Admin',
+  super_admin: 'Admin',
   lab_admin: 'Lab Administrator',
   receptionist: 'Receptionist',
   lab_technician: 'Lab Technician',

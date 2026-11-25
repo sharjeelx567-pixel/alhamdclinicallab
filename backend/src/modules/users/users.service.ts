@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { z } from 'zod';
 import type { RoleDoc, UserDoc } from '../../common/entities';
 import { badRequest, conflict, forbidden, notFound } from '../../common/errors';
-import { ALL_PERMISSIONS, Permission, ROLE_IDS, ROLE_LABELS, RoleId, SUPER_ADMIN_LOCKED } from '../../common/permissions';
+import { ALL_PERMISSIONS, ASSIGNABLE_ROLE_IDS, Permission, ROLE_IDS, ROLE_LABELS, RoleId, SUPER_ADMIN_LOCKED } from '../../common/permissions';
 import { AuthUser, toActor } from '../../common/types';
 import { getEnv } from '../../config/env';
 import { C, DataStore } from '../../database/data-store';
@@ -14,7 +14,7 @@ import { AuditService } from '../audit-logs/audit.service';
 export const CreateUserDto = z.object({
   email: z.email().max(120).transform((e) => e.toLowerCase()),
   displayName: requiredText(80),
-  role: z.enum(ROLE_IDS),
+  role: z.enum(ASSIGNABLE_ROLE_IDS),
   phone: optionalText(20),
   department: optionalText(60),
   branchId: optionalText(40),
@@ -24,7 +24,7 @@ export const CreateUserDto = z.object({
 
 export const UpdateUserDto = z.object({
   displayName: requiredText(80).optional(),
-  role: z.enum(ROLE_IDS).optional(),
+  role: z.enum(ASSIGNABLE_ROLE_IDS).optional(),
   status: z.enum(['active', 'disabled']).optional(),
   phone: optionalText(20),
   department: optionalText(60),

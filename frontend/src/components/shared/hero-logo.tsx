@@ -17,7 +17,7 @@ export function HeroLogo({ className }: { className?: string }) {
         <span className="hero-orbit-dot bg-amber-400" />
       </div>
       <div className="hero-orbit hero-orbit-2 absolute inset-[-6%] rounded-full">
-        <span className="hero-orbit-dot bg-emerald-600" />
+        <span className="hero-orbit-dot bg-neutral-800" />
       </div>
       <div className="hero-orbit hero-orbit-3 absolute inset-[10%] rounded-full">
         <span className="hero-orbit-dot bg-yellow-300" />

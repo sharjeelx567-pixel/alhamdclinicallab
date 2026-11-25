@@ -1,6 +1,6 @@
 'use client';
 
-import { Bell, ChevronDown, ChevronRight, LogOut, Menu, Search, UserRound } from 'lucide-react';
+import { Bell, ChevronRight, LogOut, Menu, PanelLeftClose, PanelLeftOpen, Search, UserRound } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
@@ -12,7 +12,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { AnimatedBackground } from '@/components/shared/animated-background';
 import { Avatar } from '@/components/shared/cloud-image';
 import { Logo } from '@/components/shared/logo';
-import { BRAND, NAV, ROUTE_LABELS, type NavGroup } from '@/constants';
+import { BRAND, NAV, ROUTE_LABELS } from '@/constants';
 import { AUTH_MODE, useAuth } from '@/features/auth/auth-provider';
 import { useApi } from '@/hooks/use-api';
 import { cn, timeAgo } from '@/lib/utils';
@@ -21,97 +21,52 @@ import type { AppNotification } from '@/types';
 import { RouteProgress } from './route-progress';
 import { ThemeToggle } from './theme';
 
-const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
-
-/** The menu groups the signed-in user may see (items filtered by permission). */
-function useVisibleNav(): NavGroup[] {
-  const { can } = useAuth();
-  return NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || can(i.permission)) })).filter((g) => g.items.length);
-}
-
 /**
- * Desktop menu bar under the green header: a direct link for single-item groups
- * (Dashboard) and a dropdown per section. The open section is marked by a gold bar.
+ * Left navigation: emerald panel, gold section labels, the open page marked with a
+ * gold bar on the left and a lighter green background. Collapses to icons only.
  */
-function TopNav() {
+function SidebarNav({ collapsed, onNavigate }: { collapsed?: boolean; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const groups = useVisibleNav();
+  const { can } = useAuth();
   return (
-    <nav aria-label="Main" className="mx-auto flex h-12 w-full max-w-[1600px] items-stretch gap-1 px-4 sm:px-6 lg:px-8">
-      {groups.map((g) => {
-        const active = g.items.some((i) => isActive(pathname, i.href));
-        const tab = cn(
-          'relative flex items-center gap-2 px-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground',
-          'after:absolute after:inset-x-2 after:bottom-0 after:h-[3px] after:rounded-t-full after:bg-highlight after:transition-transform',
-          active ? 'text-primary after:scale-x-100' : 'after:scale-x-0 hover:after:scale-x-50',
-        );
-        if (g.items.length === 1) {
-          const item = g.items[0];
-          return (
-            <Link key={g.label} href={item.href} className={tab} aria-current={active ? 'page' : undefined}>
-              <item.icon className="size-4" aria-hidden /> {item.label}
-            </Link>
-          );
-        }
+    <nav className="scrollbar-thin min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-3 py-5" aria-label="Main">
+      {NAV.map((group) => {
+        const items = group.items.filter((i) => !i.permission || can(i.permission));
+        if (!items.length) return null;
         return (
-          <DropdownMenu key={g.label}>
-            <DropdownMenuTrigger asChild>
-              <button className={tab}>
-                {g.label} <ChevronDown className="size-3.5 opacity-70" aria-hidden />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64 p-1.5">
-              <DropdownMenuLabel className="text-[11px] uppercase tracking-[0.14em] text-highlight">{g.label}</DropdownMenuLabel>
-              {g.items.map((item) => {
-                const on = isActive(pathname, item.href);
+          <div key={group.label}>
+            {collapsed ? (
+              <div className="mx-auto mb-2 h-px w-8 bg-border" aria-hidden />
+            ) : (
+              <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group.label}</p>
+            )}
+            <ul className="space-y-0.5">
+              {items.map((item) => {
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
                 return (
-                  <DropdownMenuItem key={item.href} asChild className={cn('gap-3 py-2', on && 'bg-primary-soft font-semibold text-primary')}>
-                    <Link href={item.href} aria-current={on ? 'page' : undefined}>
-                      <span className={cn('grid size-8 place-items-center rounded-md', on ? 'bg-primary text-primary-foreground' : 'bg-muted text-primary')}>
-                        <item.icon className="size-4" aria-hidden />
-                      </span>
-                      {item.label}
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      onClick={onNavigate}
+                      title={collapsed ? item.label : undefined}
+                      aria-current={active ? 'page' : undefined}
+                      className={cn(
+                        'group relative flex h-9 items-center gap-3 rounded-md px-3 text-[13.5px] font-medium transition-colors duration-150',
+                        active ? 'bg-primary-soft font-semibold text-primary' : 'text-sidebar-foreground/80 hover:bg-muted hover:text-foreground',
+                        collapsed && 'justify-center px-0',
+                      )}
+                    >
+                      {active && <span className="absolute inset-y-1.5 left-0 w-[3px] rounded-r-full bg-primary" aria-hidden />}
+                      <item.icon className={cn('size-[18px] shrink-0', active ? 'text-primary' : 'text-sidebar-muted group-hover:text-foreground')} aria-hidden />
+                      {!collapsed && <span className="truncate">{item.label}</span>}
                     </Link>
-                  </DropdownMenuItem>
+                  </li>
                 );
               })}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </ul>
+          </div>
         );
       })}
-    </nav>
-  );
-}
-
-/** Phone / tablet: the same sections as a list in a drawer. */
-function MobileNav({ onNavigate }: { onNavigate: () => void }) {
-  const pathname = usePathname();
-  const groups = useVisibleNav();
-  return (
-    <nav className="scrollbar-thin min-h-0 flex-1 space-y-4 overflow-y-auto px-3 py-4" aria-label="Main">
-      {groups.map((g) => (
-        <div key={g.label}>
-          <p className="mb-1 px-3 text-[11px] font-bold uppercase tracking-[0.14em] text-highlight">{g.label}</p>
-          <ul className="space-y-0.5">
-            {g.items.map((item) => {
-              const on = isActive(pathname, item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onNavigate}
-                    aria-current={on ? 'page' : undefined}
-                    className={cn('flex items-center gap-3 rounded-md border-l-[3px] border-transparent px-3 py-2 text-sm font-medium', on ? 'border-highlight bg-primary-soft text-primary' : 'text-foreground/80 hover:bg-muted')}
-                  >
-                    <item.icon className="size-[18px] shrink-0" aria-hidden />
-                    {item.label}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      ))}
     </nav>
   );
 }
@@ -122,7 +77,6 @@ const LINKABLE = new Set([...NAV.flatMap((g) => g.items.map((i) => i.href)), '/a
 function Breadcrumbs() {
   const pathname = usePathname();
   const parts = pathname.split('/').filter(Boolean);
-  if (parts.length < 2) return null; // a top-level page: its name is already marked in the menu bar
   return (
     <nav aria-label="Breadcrumb" className="hidden min-w-0 md:block">
       <ol className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -292,61 +246,73 @@ function EnvironmentBanner() {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const [collapsed, setCollapsed] = React.useState(false);
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
   return (
-    <div className="relative flex min-h-dvh flex-col">
+    <div className="relative flex min-h-dvh">
       <React.Suspense fallback={null}>
         <RouteProgress />
       </React.Suspense>
       <AnimatedBackground />
 
+      {/* Desktop sidebar: full height, emerald, gold edge */}
+      <aside className={cn('no-print sticky top-0 hidden h-dvh shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground transition-[width] duration-200 ease-smooth lg:flex', collapsed ? 'w-[72px]' : 'w-[256px]')}>
+        <div className={cn('flex h-16 shrink-0 items-center border-b px-5', collapsed && 'justify-center px-0')}>
+          <Link href="/dashboard" aria-label={`${BRAND.name} home`}>
+            <Logo collapsed={collapsed} />
+          </Link>
+        </div>
+        <SidebarNav collapsed={collapsed} />
+        <div className="shrink-0 border-t p-3">
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-md text-xs font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <PanelLeftOpen className="size-4" /> : <><PanelLeftClose className="size-4" /> Collapse menu</>}
+          </button>
+          {!collapsed && <p className="mt-2 text-center text-[10.5px] text-muted-foreground [@media(max-height:820px)]:hidden">{BRAND.tagline}</p>}
+        </div>
+      </aside>
+
       {/* Mobile drawer */}
       <Dialog open={mobileOpen} onOpenChange={setMobileOpen}>
-        <SheetContent side="left" className="flex w-72 flex-col border-none bg-card p-0" aria-describedby={undefined}>
-          <div className="flex h-16 items-center border-b-2 border-highlight bg-sidebar px-4">
-            <Logo inverted />
+        <SheetContent side="left" className="flex w-72 flex-col border-r bg-sidebar p-0 text-sidebar-foreground" aria-describedby={undefined}>
+          <div className="flex h-16 items-center border-b px-5">
+            <Logo />
           </div>
           <span className="sr-only" id="mobile-nav-title">Navigation</span>
-          <MobileNav onNavigate={() => setMobileOpen(false)} />
-          <p className="border-t p-3 text-center text-[11px] italic text-muted-foreground">{BRAND.tagline}</p>
+          <SidebarNav onNavigate={() => setMobileOpen(false)} />
+          <p className="border-t p-3 text-center text-[10.5px] text-muted-foreground">{BRAND.tagline}</p>
         </SheetContent>
       </Dialog>
 
-      <EnvironmentBanner />
-      <header className="no-print sticky top-0 z-30 shadow-card">
-        {/* Green brand bar */}
-        <div className="border-b-2 border-highlight bg-sidebar text-sidebar-foreground">
-          <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center gap-3 px-4 sm:px-6 lg:px-8">
-            <Button variant="ghost" size="icon" className="-ml-2 text-sidebar-foreground hover:bg-white/10 hover:text-white lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
-              <Menu />
-            </Button>
-            <Link href="/dashboard" className="min-w-0" aria-label={`${BRAND.name} home`}>
-              <Logo inverted className="[&_div]:hidden min-[400px]:[&_div]:block" />
-            </Link>
-            <div className="on-brand ml-auto flex items-center gap-1 sm:gap-2">
-              <GlobalSearch />
-              <ThemeToggle />
-              <NotificationsMenu />
-              <UserMenu />
-            </div>
-          </div>
-        </div>
-        {/* Section menus */}
-        <div className="hidden border-b bg-card lg:block">
-          <TopNav />
-        </div>
-      </header>
-
-      <main id="main" className="mx-auto w-full min-w-0 max-w-[1600px] flex-1 px-4 py-5 sm:px-6 lg:px-8">
-        <div className="mb-4 empty:hidden">
+      <div className="flex min-w-0 flex-1 flex-col">
+        <EnvironmentBanner />
+        <header className="no-print sticky top-0 z-30 flex h-16 shrink-0 items-center gap-4 border-b bg-card px-4 sm:px-6 lg:px-8">
+          <Button variant="ghost" size="icon" className="-ml-2 lg:hidden" onClick={() => setMobileOpen(true)} aria-label="Open navigation">
+            <Menu />
+          </Button>
+          <Link href="/dashboard" className="min-w-0 lg:hidden">
+            <Logo className="[&_div]:hidden min-[400px]:[&_div]:block" />
+          </Link>
           <Breadcrumbs />
-        </div>
-        {children}
-      </main>
-      <footer className="no-print border-t bg-card/80 py-3 text-center text-[11px] text-muted-foreground">
-        {BRAND.name} · {BRAND.tagline}
-      </footer>
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+            <GlobalSearch />
+            <ThemeToggle />
+            <NotificationsMenu />
+            <div className="mx-1 hidden h-8 w-px bg-border sm:block" aria-hidden />
+            <UserMenu />
+          </div>
+        </header>
+        <main id="main" className="mx-auto w-full min-w-0 max-w-[1520px] flex-1 px-4 py-6 sm:px-6 lg:px-10 lg:py-8">
+          {children}
+        </main>
+        <footer className="no-print border-t px-4 py-4 text-center text-[11px] text-muted-foreground sm:px-6 lg:px-10">
+          © {new Date().getFullYear()} {BRAND.name} · {BRAND.tagline}
+        </footer>
+      </div>
     </div>
   );
 }

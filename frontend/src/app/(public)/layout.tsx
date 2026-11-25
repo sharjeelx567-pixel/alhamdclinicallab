@@ -1,38 +1,70 @@
-import { ShieldCheck } from 'lucide-react';
+import { FileCheck2, QrCode, ShieldCheck } from 'lucide-react';
 import { ThemeToggle } from '@/components/layout/theme';
 import { RoundLogo } from '@/components/shared/round-logo';
 import { BRAND } from '@/constants';
 
+const POINTS = [
+  { icon: FileCheck2, title: 'Verified reports', text: 'Every result is checked before the report is issued.' },
+  { icon: QrCode, title: 'Reports online', text: 'Patients scan the QR code on their bill to get the report.' },
+  { icon: ShieldCheck, title: 'Private & secure', text: 'Patient records are visible to authorised staff only.' },
+];
+
 /**
- * Sign-in and password pages: a deep emerald field with the gold star lattice, the
- * logo and name centred above a white "paper" card.
+ * Sign-in and password pages. Large screens: a green brand panel on the left and the
+ * form on the right. Phones: logo and name above the form.
  */
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="relative min-h-dvh overflow-hidden bg-sidebar text-sidebar-foreground">
-      <div aria-hidden className="pointer-events-none absolute inset-0">
-        <div className="ahl-pattern-layer absolute inset-0 !opacity-[0.16] invert" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,hsl(var(--brand-2)/0.55),transparent_60%)]" />
-        <div className="absolute inset-x-0 bottom-0 h-1.5 bg-gradient-to-r from-transparent via-highlight to-transparent" />
-      </div>
+    <div className="grid min-h-dvh bg-background lg:h-dvh lg:grid-cols-[minmax(0,1.05fr)_minmax(0,1fr)] lg:overflow-hidden">
+      {/* Brand panel */}
+      <aside className="relative hidden overflow-hidden bg-gradient-to-br from-[#064e3b] via-[#065f46] to-[#047857] text-white lg:flex lg:flex-col">
+        <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 size-[28rem] rounded-full bg-white/[0.06]" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-32 -left-20 size-[26rem] rounded-full bg-black/[0.08]" />
 
-      <div className="absolute right-4 top-4 z-10 [&>button]:text-sidebar-foreground [&>button:hover]:bg-white/10">
-        <ThemeToggle />
-      </div>
+        <div className="relative flex min-h-0 flex-1 flex-col justify-center px-12 py-8 xl:px-20">
+          <RoundLogo className="size-24 shadow-2xl ring-4 ring-white/25 [@media(max-height:760px)]:size-20" alt={BRAND.name} />
+          <h2 className="mt-5 text-3xl font-extrabold leading-tight tracking-tight [@media(max-height:760px)]:mt-3 [@media(max-height:760px)]:text-2xl">
+            AL HAMD
+            <span className="block text-xl font-semibold text-white/85 [@media(max-height:760px)]:text-lg">Clinical Laboratory</span>
+          </h2>
+          <p lang="ur" dir="rtl" className="mt-1 w-fit text-base text-white/80">الحمد کلینیکل لیبارٹری</p>
+          <p className="mt-2 max-w-sm text-sm text-white/80">{BRAND.tagline}</p>
 
-      <main className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col items-center justify-center px-4 py-10">
-        <RoundLogo className="size-28 shadow-elevated ring-4 ring-highlight/70" alt={BRAND.name} />
-        <p className="mt-4 text-center font-display text-3xl font-bold tracking-wide text-white">Al Hamd</p>
-        <p className="text-center text-xs font-bold uppercase tracking-[0.3em] text-highlight">Clinical Laboratory</p>
-        <p lang="ur" dir="rtl" className="mt-1 text-center text-base text-sidebar-muted">الحمد کلینیکل لیبارٹری</p>
-
-        <div className="mt-6 w-full rounded-xl border-t-4 border-highlight bg-card p-6 text-card-foreground shadow-elevated animate-in fade-in-0 slide-in-from-bottom-2 duration-300 sm:p-8">
-          {children}
+          <ul className="mt-6 grid max-w-sm gap-3 [@media(max-height:760px)]:mt-4">
+            {POINTS.map((p) => (
+              <li key={p.title} className="flex items-start gap-3">
+                <span className="grid size-8 shrink-0 place-items-center rounded-md bg-white/15 ring-1 ring-white/20">
+                  <p.icon className="size-4" aria-hidden />
+                </span>
+                <span>
+                  <span className="block text-sm font-semibold">{p.title}</span>
+                  <span className="block text-xs text-white/75">{p.text}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
         </div>
+        <p className="relative px-12 pb-6 text-xs text-white/60 xl:px-20">© {new Date().getFullYear()} {BRAND.name}</p>
+      </aside>
 
-        <p className="mt-6 flex items-center gap-1.5 text-center text-xs text-sidebar-muted">
-          <ShieldCheck className="size-3.5 text-highlight" aria-hidden /> {BRAND.tagline} · Authorised staff only
-        </p>
+      {/* Form side */}
+      <main className="relative flex min-h-dvh flex-col lg:min-h-0">
+        <div className="absolute right-4 top-4 z-10">
+          <ThemeToggle />
+        </div>
+        <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-8 sm:px-8">
+          <div className="w-full max-w-[360px]">
+            <div className="mb-6 flex flex-col items-center text-center lg:hidden">
+              <RoundLogo className="size-16 shadow-card ring-1 ring-border" alt={BRAND.name} />
+              <p className="mt-2 text-base font-bold tracking-tight">{BRAND.name}</p>
+              <p className="text-xs text-muted-foreground">{BRAND.tagline}</p>
+            </div>
+            <div className="rounded-xl border bg-card p-6 shadow-elevated">{children}</div>
+            <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground [@media(max-height:760px)]:mt-3">
+              <ShieldCheck className="size-3.5 text-primary" aria-hidden /> Authorised laboratory staff only
+            </p>
+          </div>
+        </div>
       </main>
     </div>
   );

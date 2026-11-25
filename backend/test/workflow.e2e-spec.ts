@@ -212,8 +212,9 @@ describe('complete laboratory workflow', () => {
   it('only authorised, independent users can approve', async () => {
     const cbc = order.items.find((i) => i.testCode === 'CBC')!;
     expect((await api().post(`/api/v1/results/${cbc.resultId}/approve`).set(as(TECH)).send({})).status).toBe(403);
-    const self = await api().post(`/api/v1/results/${cbc.resultId}/approve`).set(as(ADMIN)).send({});
-    expect(self.status).toBe(403); // entered by super admin → cannot self-verify
+    // AL HAMD has one role (Admin), so the person who entered a result may also verify it.
+    const settings = await api().get('/api/v1/settings').set(as(ADMIN));
+    expect(settings.body.data.results.allowSelfVerification).toBe(true);
     for (const i of order.items) {
       const res = await api().post(`/api/v1/results/${i.resultId}/approve`).set(as(PATH)).send({ comment: 'Verified' });
       expect(res.status).toBe(201);
@@ -528,9 +529,11 @@ describe('administrative modules persist through the data store', () => {
   });
 
   it('staff & roles: create, update, role permissions persist', async () => {
-    const u = await api().post('/api/v1/users').set(as(ADMIN)).send({ email: 'persist.staff@demo.ahl.local', displayName: 'Persist Staff', role: 'receptionist', initialPassword: 'TestPassword-123' }).expect(201);
+    // Only the Admin role can be assigned.
+    await api().post('/api/v1/users').set(as(ADMIN)).send({ email: 'old.role@demo.ahl.local', displayName: 'Old Role', role: 'receptionist', initialPassword: 'TestPassword-123' }).expect(400);
+    const u = await api().post('/api/v1/users').set(as(ADMIN)).send({ email: 'persist.staff@demo.ahl.local', displayName: 'Persist Staff', role: 'super_admin', initialPassword: 'TestPassword-123' }).expect(201);
     await api().patch(`/api/v1/users/${u.body.data.id}`).set(as(ADMIN)).send({ department: 'Front desk' }).expect(200);
-    expect((await api().get(`/api/v1/users/${u.body.data.id}`).set(as(ADMIN))).body.data).toMatchObject({ department: 'Front desk', role: 'receptionist' });
+    expect((await api().get(`/api/v1/users/${u.body.data.id}`).set(as(ADMIN))).body.data).toMatchObject({ department: 'Front desk', role: 'super_admin' });
     const roles = (await api().get('/api/v1/roles').set(as(ADMIN))).body.data.roles;
     const acc = roles.find((r: { id: string }) => r.id === 'accountant');
     const perms = [...acc.permissions, 'inventory.read'];

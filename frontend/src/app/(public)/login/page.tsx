@@ -20,14 +20,8 @@ const schema = z.object({
   password: z.string().min(1, 'Enter your password'),
 });
 
-function firebaseMessage(err: unknown): string {
-  const code = (err as { code?: string }).code ?? '';
-  if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found', 'auth/invalid-email'].includes(code)) return 'Incorrect email or password.';
-  if (code === 'auth/too-many-requests') return 'Too many attempts. Please wait a few minutes and try again.';
-  if (code === 'auth/user-disabled') return 'This account has been disabled. Contact the laboratory administrator.';
-  if (code === 'auth/network-request-failed') return 'Network error. Check your connection.';
-  return errorMessage(err);
-}
+/** Messages come from the server (it signs in with Firebase on the browser's behalf). */
+const firebaseMessage = (err: unknown): string => errorMessage(err);
 
 function safeNext(next: string | null) {
   return next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard';
@@ -89,9 +83,9 @@ function LoginForm() {
 
   return (
     <div>
-      <h1 className="font-display text-2xl font-semibold">Staff sign in</h1>
-      <p className="mt-1 text-sm text-muted-foreground">Authorised laboratory personnel only.</p>
-      <div className="mt-8">
+      <h1 className="text-xl font-bold tracking-tight">Welcome back</h1>
+      <p className="mt-1 text-sm text-muted-foreground">Sign in to continue.</p>
+      <div className="mt-5">
         {AUTH_MODE === 'dev' ? (
           <DevLogin onDone={() => router.replace(next)} />
         ) : !firebaseConfigured() ? (
@@ -134,7 +128,7 @@ function LoginForm() {
           </form>
         )}
       </div>
-      <p className="mt-10 text-center text-xs text-muted-foreground">There is no public sign-up. Accounts are created by the laboratory administrator.</p>
+      <p className="mt-5 border-t pt-4 text-center text-xs text-muted-foreground">No account? Ask the laboratory Admin to create one for you.</p>
     </div>
   );
 }
