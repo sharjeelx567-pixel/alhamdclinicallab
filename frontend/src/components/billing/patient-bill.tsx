@@ -35,7 +35,6 @@ export function PatientBill({ inv }: { inv: InvoiceData }) {
         <LabLogoMark className="size-24" alt={inv.lab.name} />
         <div className="min-w-0">
           <p className="text-[16pt] font-bold uppercase leading-tight tracking-wide">{inv.lab.name}</p>
-          {inv.lab.tagline && <p className="text-[9.5pt] font-semibold italic">{inv.lab.tagline}</p>}
           {(inv.lab.address || inv.lab.phone) && (
             <p className="mt-0.5 text-[9pt] font-bold tracking-wide">
               {inv.lab.address && `${inv.lab.address.toUpperCase()}. `}

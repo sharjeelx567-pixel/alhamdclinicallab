@@ -82,7 +82,6 @@ export async function renderReportPdf(
     const spacing = name.length > 1 ? Math.min(6, Math.max(0, (tw - doc.widthOfString(name) - 2) / (name.length - 1))) : 0;
     doc.fillColor(COLORS.ink).text(name, textX, top + 4, { width: tw + spacing, align: 'center', characterSpacing: spacing, lineBreak: false });
     doc.y = top + 4 + size * 0.98;
-    if (s.lab.tagline) doc.fillColor(COLORS.green).font('Helvetica-Bold').fontSize(10.5).text(s.lab.tagline, textX, doc.y + 1, { width: tw, align: 'center' });
     // Address only: the phone number is not printed in the report header.
     // One line under the name, as on the lab's own letterhead: ADDRESS. CELL : PHONE
     const contactLine = [s.lab.address, s.lab.phone && `CELL : ${s.lab.phone}`].filter(Boolean).join('. ').toUpperCase();
