@@ -38,7 +38,7 @@ export function OrderReceipt({ order, payments, patient }: { order: Order; payme
           <LabLogoMark className="size-11" />
           <div>
             <p className="text-[13pt] font-bold tracking-wide text-[#0d7f8e] print:text-black">{BRAND.name}</p>
-            <p className="text-[9pt] font-semibold italic text-slate-500">{BRAND.tagline}</p>
+            <p className="text-[8.5pt] font-semibold text-slate-700">{`${BRAND.address}. CELL : ${BRAND.phone}`.toUpperCase()}</p>
           </div>
         </div>
         <div className="text-right">

@@ -272,7 +272,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             {collapsed ? <PanelLeftOpen className="size-4" /> : <><PanelLeftClose className="size-4" /> Collapse menu</>}
           </button>
-          {!collapsed && <p className="mt-2 text-center text-[10.5px] text-muted-foreground [@media(max-height:820px)]:hidden">{BRAND.tagline}</p>}
         </div>
       </aside>
 
@@ -284,7 +283,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <span className="sr-only" id="mobile-nav-title">Navigation</span>
           <SidebarNav onNavigate={() => setMobileOpen(false)} />
-          <p className="border-t p-3 text-center text-[10.5px] text-muted-foreground">{BRAND.tagline}</p>
         </SheetContent>
       </Dialog>
 
@@ -310,7 +308,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {children}
         </main>
         <footer className="no-print border-t px-4 py-4 text-center text-[11px] text-muted-foreground sm:px-6 lg:px-10">
-          © {new Date().getFullYear()} {BRAND.name} · {BRAND.tagline}
+          © {new Date().getFullYear()} {BRAND.name}
         </footer>
       </div>
     </div>

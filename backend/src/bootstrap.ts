@@ -40,7 +40,7 @@ export async function createApp(options: { logger?: boolean } = {}): Promise<INe
   if (env.NODE_ENV !== 'production') {
     const config = new DocumentBuilder()
       .setTitle('AL HAMD CLINICAL LABORATORY — LIS API')
-      .setDescription('Accurate Results, Trusted Care. Private API for authorised laboratory staff.')
+      .setDescription('Private API for authorised laboratory staff.')
       .setVersion('1.0')
       .addBearerAuth()
       .build();

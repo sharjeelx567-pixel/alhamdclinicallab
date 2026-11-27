@@ -8,7 +8,7 @@ import '@/styles/globals.css';
 
 export const metadata: Metadata = {
   title: { default: BRAND.name, template: `%s · ${BRAND.short}` },
-  description: `${BRAND.name} — ${BRAND.tagline}. Laboratory information system for authorised staff.`,
+  description: `${BRAND.name} — laboratory information system for authorised staff.`,
   robots: { index: false, follow: false },
   icons: { icon: '/favicon.svg' },
 };

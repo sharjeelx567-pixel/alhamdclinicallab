@@ -47,7 +47,7 @@ Baaqi staff ke account website ke **Staff & roles** se banayein.
 ### 6. Pehli dafa website kholne ke baad
 - **Settings** mein lab ka address, phone, report par signatures (doctor / technologist ke naam) likhein.
 - **Test catalogue** mein qeematein aur normal ranges approve karein.
-- Tagline abhi *"Accurate Results, Trusted Care"* hai — Settings se badal sakte hain.
+- Tagline (naam ke neeche ki chhoti line) Settings se rakh ya hata sakte hain.
 
 ## Computer par chala kar dekhna (demo, bina database)
 ```

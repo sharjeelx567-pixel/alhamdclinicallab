@@ -27,7 +27,6 @@ import type { BadgeTone } from '@/components/ui/badge';
 export const BRAND = {
   name: 'AL-HAMD CLINICAL LABORATORY',
   short: 'Al Hamd Clinical Lab',
-  tagline: 'Accurate Results, Trusted Care',
   /** Printed under the name on the patient card (report and bill take these from Settings). */
   address: 'Harand Road, Nadeem Medical Center, Dajal',
   phone: '0337-1737474',

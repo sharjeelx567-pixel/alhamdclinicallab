@@ -10,7 +10,7 @@ import { usage } from '../../common/usage-monitor';
 export const DEFAULT_SETTINGS: Omit<LabSettingsDoc, 'updatedAt'> = {
   id: 'main',
   name: 'AL-HAMD CLINICAL LABORATORY',
-  tagline: 'Accurate Results, Trusted Care',
+  tagline: '',
   address: 'Harand Road, Nadeem Medical Center, Dajal',
   phone: '0337-1737474',
   email: '',

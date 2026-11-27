@@ -28,7 +28,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <span className="block text-xl font-semibold text-white/85 [@media(max-height:760px)]:text-lg">Clinical Laboratory</span>
           </h2>
           <p lang="ur" dir="rtl" className="mt-1 w-fit text-base text-white/80">الحمد کلینیکل لیبارٹری</p>
-          <p className="mt-2 max-w-sm text-sm text-white/80">{BRAND.tagline}</p>
+          <p className="mt-2 max-w-sm text-xs font-semibold tracking-wide text-white/80">{`${BRAND.address}. CELL : ${BRAND.phone}`.toUpperCase()}</p>
 
           <ul className="mt-6 grid max-w-sm gap-3 [@media(max-height:760px)]:mt-4">
             {POINTS.map((p) => (
@@ -57,7 +57,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
             <div className="mb-6 flex flex-col items-center text-center lg:hidden">
               <RoundLogo className="size-16 shadow-card ring-1 ring-border" alt={BRAND.name} />
               <p className="mt-2 text-base font-bold tracking-tight">{BRAND.name}</p>
-              <p className="text-xs text-muted-foreground">{BRAND.tagline}</p>
+              <p className="text-[11px] font-medium text-muted-foreground">{`${BRAND.address}. CELL : ${BRAND.phone}`.toUpperCase()}</p>
             </div>
             <div className="rounded-xl border bg-card p-6 shadow-elevated">{children}</div>
             <p className="mt-5 flex items-center justify-center gap-1.5 text-xs text-muted-foreground [@media(max-height:760px)]:mt-3">

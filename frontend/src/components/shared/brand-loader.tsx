@@ -59,7 +59,6 @@ export function BrandLoader({ label = 'Loading…', size = 'screen', fullScreen,
         <BrandSpinner size={s === 'screen' ? 176 : 136} />
         <div>
           <BrandTitle small={s === 'page'} />
-          <p className="mt-1 text-center text-xs italic text-muted-foreground">Accurate Results, Trusted Care</p>
         </div>
         <ProgressBar className={s === 'screen' ? 'w-52' : 'w-44'} />
         <span className="text-xs text-muted-foreground">{label}</span>

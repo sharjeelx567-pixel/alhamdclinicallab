@@ -1,6 +1,6 @@
 # AL HAMD CLINICAL LABORATORY — Laboratory Information System
 
-*Accurate Results, Trusted Care*
+**
 
 A private laboratory information system (LIS/LIMS) for the authorised staff of AL HAMD CLINICAL LABORATORY. It covers patient registration, orders, samples, results, verification, reports, billing, inventory, analyzers, audit and administration.
 
