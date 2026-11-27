@@ -46,7 +46,7 @@ export default function PatientProfilePage() {
           <LabLogoMark className="size-20" alt={BRAND.name} />
           <div className="text-right text-xs">
             <p className="font-semibold">{BRAND.name}</p>
-            <p className="italic text-slate-500">{BRAND.tagline}</p>
+            <p className="font-semibold">{`${BRAND.address}. CELL : ${BRAND.phone}`.toUpperCase()}</p>
           </div>
         </div>
         <h2 className="mt-4 text-lg font-semibold">Patient registration</h2>

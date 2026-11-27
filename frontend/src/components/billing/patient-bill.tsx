@@ -27,7 +27,6 @@ export function PatientBill({ inv }: { inv: InvoiceData }) {
   const paidNet = b.paid - b.refunded;
   const relation = p?.guardianRelation && p.guardianRelation !== 'other' ? ` (${titleCase(p.guardianRelation)})` : '';
   const receipts = inv.payments.filter((x) => x.type === 'payment');
-  const contact = [inv.lab.address, inv.lab.phone && `Ph: ${inv.lab.phone}`, inv.lab.email].filter(Boolean);
 
   return (
     <article className="print-area print-doc mx-auto flex min-h-[273mm] w-full min-w-[180mm] max-w-[210mm] flex-col bg-white p-[10mm] text-[10pt] font-medium text-black shadow-elevated print:min-h-0 sm:p-[12mm]">
@@ -37,7 +36,12 @@ export function PatientBill({ inv }: { inv: InvoiceData }) {
         <div className="min-w-0">
           <p className="text-[16pt] font-bold uppercase leading-tight tracking-wide">{inv.lab.name}</p>
           {inv.lab.tagline && <p className="text-[9.5pt] font-semibold italic">{inv.lab.tagline}</p>}
-          {contact.length > 0 && <p className="mt-0.5 text-[9pt]">{contact.join('  •  ')}</p>}
+          {(inv.lab.address || inv.lab.phone) && (
+            <p className="mt-0.5 text-[9pt] font-bold tracking-wide">
+              {inv.lab.address && `${inv.lab.address.toUpperCase()}. `}
+              {inv.lab.phone && <span className="whitespace-nowrap">CELL : {inv.lab.phone}</span>}
+            </p>
+          )}
         </div>
         <div className="text-right">
           <p className="text-[15pt] font-bold tracking-wide">PATIENT BILL</p>
@@ -136,7 +140,7 @@ export function PatientBill({ inv }: { inv: InvoiceData }) {
       {/* Footer */}
       <footer className="mt-auto pt-6 print:mt-6">
         <p className="text-center text-[9pt] font-semibold">Keep this bill to collect your report. Reports are released on or after the report date shown above.</p>
-        <p className="mt-1.5 border-t-2 border-slate-800 pt-1.5 text-center text-[9pt] font-bold">{[inv.lab.name, ...contact].join('    •    ')}</p>
+        <p className="mt-1.5 border-t-2 border-slate-800 pt-1.5 text-center text-[9pt] font-bold">{[inv.lab.name, inv.lab.address, inv.lab.phone && `Cell: ${inv.lab.phone}`].filter(Boolean).join('    •    ')}</p>
       </footer>
     </article>
   );

@@ -77,7 +77,7 @@ export function ReportDocument({
             </svg>
           </h1>
           {s.lab.tagline && <p className="mt-0.5 text-[11.5pt] font-bold leading-tight tracking-wide text-[#15803d] print:text-black">{s.lab.tagline}</p>}
-          {s.lab.address && <p className="text-[9.5pt] font-semibold">{s.lab.address}</p>}
+          {(s.lab.address || s.lab.phone) && <p className="mt-0.5 text-[9.5pt] font-bold tracking-wide">{[s.lab.address, s.lab.phone && `CELL : ${s.lab.phone}`].filter(Boolean).join('. ').toUpperCase()}</p>}
         </div>
       </header>
       <p className="mt-1 border-b-2 border-slate-800 pb-1 text-center font-serif text-[11.5pt] font-bold uppercase tracking-wide">

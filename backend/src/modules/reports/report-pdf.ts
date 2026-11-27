@@ -84,7 +84,9 @@ export async function renderReportPdf(
     doc.y = top + 4 + size * 0.98;
     if (s.lab.tagline) doc.fillColor(COLORS.green).font('Helvetica-Bold').fontSize(10.5).text(s.lab.tagline, textX, doc.y + 1, { width: tw, align: 'center' });
     // Address only: the phone number is not printed in the report header.
-    if (s.lab.address) doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(9).text(s.lab.address, textX, doc.y + 2, { width: tw, align: 'center' });
+    // One line under the name, as on the lab's own letterhead: ADDRESS. CELL : PHONE
+    const contactLine = [s.lab.address, s.lab.phone && `CELL : ${s.lab.phone}`].filter(Boolean).join('. ').toUpperCase();
+    if (contactLine) doc.fillColor(COLORS.ink).font('Helvetica-Bold').fontSize(9).text(contactLine, textX, doc.y + 2, { width: tw, align: 'center' });
     let y = Math.max(doc.y + 4, top + 74);
     doc.fillColor(COLORS.ink).font('Times-Bold').fontSize(11.5).text(`CLINICAL LABORATORY REPORT${report.status === 'interim' || report.status === 'superseded' ? `  (${report.status.toUpperCase()})` : ''}`, left, y, { width, align: 'center' });
     y = doc.y + 2;
